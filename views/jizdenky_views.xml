@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Kanban View for Jízdenky -->
+    <record id="modern_bus_reservation_jizdenky_kanban" model="ir.ui.view">
+        <field name="name">modern.bus.reservation.jizdenky.kanban</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="passenger_name"/>
+                <field name="route_display"/>
+                <field name="trip_date"/>
+                <field name="status"/>
+                <field name="selected_seats"/>
+                <field name="boarding_point"/>
+                <field name="dropping_point"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="row mb4">
+                            <div class="col-8">
+                                <field name="passenger_name" class="fw-bold"/>
+                            </div>
+                            <div class="col-4 text-end">
+                                <field name="status" widget="label_selection" options="{'classes': {'reserved': 'warning', 'paid': 'success', 'confirmed': 'success', 'cancelled': 'danger', 'expired': 'muted'}}"/>
+                            </div>
+                        </div>
+                        <div class="row mb4">
+                            <div class="col-12 text-muted">
+                                <field name="route_display"/>
+                            </div>
+                        </div>
+                        <div class="row mb4">
+                            <div class="col-6">
+                                <span><i class="fa fa-map-marker me-1"/> <field name="boarding_point"/></span>
+                            </div>
+                            <div class="col-6 text-end">
+                                <span><i class="fa fa-map-marker me-1"/> <field name="dropping_point"/></span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <i class="fa fa-calendar me-1" title="Datum"/> <field name="trip_date"/>
+                            </div>
+                            <div class="col-6 text-end">
+                                <i class="fa fa-chair me-1" title="Místa"/> <field name="selected_seats"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Tree View for Jízdenky (Tickets) - based on modern.bus.reservation -->
+    <record id="modern_bus_reservation_jizdenky_tree" model="ir.ui.view">
+        <field name="name">modern.bus.reservation.jizdenky.tree</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list default_order="trip_number, route_id, id" decoration-warning="status == 'reserved'" decoration-success="status in ('paid', 'confirmed')" decoration-danger="status == 'cancelled'" decoration-muted="status == 'expired'">
+                <field name="trip_number" column_invisible="1" />
+                <field name="route_display" string="Linka" />
+                <field name="payment_info_html" widget="html" string="Datum a čas nákupu" />
+                <field name="trip_date" string="Datum" />
+                <field name="boarding_point" string="Odkud" />
+                <field name="dropping_point" string="Kam" />
+                <field name="selected_seats" string="Místo" />
+                <field name="passenger_name" string="Jméno" />
+                <field name="passenger_email" string="Email" />
+                <field name="passenger_phone" string="Telefon" />
+                <field name="status" string="" widget="badge" decoration-warning="status == 'reserved'" decoration-success="status in ('paid', 'confirmed')" decoration-danger="status == 'cancelled'" decoration-muted="status == 'expired'" />
+                <button name="action_pay" string="" type="object" class="btn-success btn-sm"
+                        title="Označit jako zaplaceno" icon="fa-check"
+                        invisible="status in ('paid', 'confirmed', 'cancelled')" />
+            </list>
+        </field>
+    </record>
+
+    <!-- Search View for Jízdenky -->
+    <record id="modern_bus_reservation_jizdenky_search" model="ir.ui.view">
+        <field name="name">modern.bus.reservation.jizdenky.search</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <search string="Jízdenky">
+                <field name="passenger_name" />
+                <field name="passenger_email" />
+                <field name="passenger_phone" />
+                <field name="trip_number" />
+                <field name="selected_seats" />
+                <separator />
+                <filter name="filter_reserved" string="Rezervované" domain="[('status', '=', 'reserved')]" />
+                <filter name="filter_paid" string="Zaplacené" domain="[('status', 'in', ['paid', 'confirmed'])]" />
+                <filter name="filter_cancelled" string="Zrušené" domain="[('status', '=', 'cancelled')]" />
+                <separator />
+                <filter name="filter_today_future" string="Aktuální a budoucí" domain="[('trip_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]" />
+                <separator />
+                <filter name="group_by_trip" string="Seskupit podle linky" context="{'group_by': 'route_id'}" />
+                <filter name="group_by_status" string="Seskupit podle stavu" context="{'group_by': 'status'}" />
+                <filter name="group_by_date" string="Seskupit podle data jízdy" context="{'group_by': 'trip_date'}" />
+            </search>
+        </field>
+    </record>
+
+    <!-- Form View for Jízdenky -->
+    <record id="modern_bus_reservation_jizdenky_form" model="ir.ui.view">
+        <field name="name">modern.bus.reservation.jizdenky.form</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="Jízdenka">
+                <header>
+                    <button name="action_pay" string="Označit jako zaplaceno" type="object"
+                            class="btn-success" icon="fa-check"
+                            invisible="status in ('paid', 'confirmed', 'cancelled')" />
+                    <button name="action_cancel" string="Zrušit" type="object"
+                            class="btn-danger" icon="fa-times"
+                            invisible="status in ('cancelled', 'expired')" />
+                    <button name="action_send_ticket" string="Znovu poslat jízdenku" type="object"
+                            class="btn-primary" icon="fa-envelope"
+                            invisible="status == 'cancelled'" />
+                    <button name="action_download_ticket" string="Stáhnout jízdenku" type="object"
+                            class="btn-secondary" icon="fa-download"
+                            invisible="status == 'cancelled'" />
+                    <button name="action_download_qr" string="QR kód" type="object"
+                            class="btn-info" icon="fa-qrcode"
+                            invisible="status == 'cancelled'" />
+                    <button name="action_download_invoice" string="Faktura" type="object"
+                            class="btn-secondary" icon="fa-file-invoice"
+                            invisible="status in ('cancelled', 'reserved')" />
+                    <button name="action_download_payment_confirmation" string="Potvrzení o platbě" type="object"
+                            class="btn-secondary" icon="fa-receipt"
+                            invisible="status in ('cancelled', 'reserved')" />
+                    <button name="action_show_payment_details" string="Údaje o platbě" type="object"
+                            class="btn-info" icon="fa-credit-card"
+                            invisible="status in ('cancelled', 'reserved')" />
+                    <field name="status" widget="statusbar" statusbar_visible="reserved,paid,confirmed,expired,cancelled" />
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <div class="d-flex align-items-baseline gap-3">
+                            <h1 class="mb-0">
+                                <field name="name" readonly="1"/>
+                            </h1>
+                            <span class="text-muted" style="font-size: 14px;">
+                                <field name="reservation_date" readonly="1" widget="datetime"/>
+                            </span>
+                        </div>
+                    </div>
+                    <group>
+                        <group string="Informace o cestě">
+                            <field name="route_id" string="Linka" readonly="1"/>
+                            <field name="selected_seats" string="Místo" readonly="1"/>
+                            <label for="boarding_point" string="Trasa"/>
+                            <div class="o_row">
+                                <field name="boarding_point" readonly="1" nolabel="1"/>
+                                <span class="mx-2">→</span>
+                                <field name="dropping_point" readonly="1" nolabel="1"/>
+                            </div>
+                        </group>
+                        <group string="Cestující">
+                            <field name="passenger_name" string="Jméno"/>
+                            <label for="passenger_email" string="Kontakt"/>
+                            <div class="o_row">
+                                <field name="passenger_email" nolabel="1" placeholder="Email"/>
+                                <span class="mx-2">|</span>
+                                <field name="passenger_phone" nolabel="1" placeholder="Telefon"/>
+                            </div>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Objednávka">
+                            <field name="sale_order_id" string="Objednávka"/>
+                            <field name="reservation_date" string="Datum rezervace" readonly="1" widget="datetime"/>
+                            <button name="action_show_payment_details" string="Zobrazit údaje o platbě" type="object"
+                                    class="btn-link" icon="fa-credit-card"
+                                    invisible="status in ('cancelled', 'reserved')"/>
+                        </group>
+                        <group string="Fakturace" invisible="needs_invoice == False">
+                            <field name="needs_invoice" />
+                            <field name="invoice_company" string="Firma" invisible="needs_invoice == False" />
+                            <field name="invoice_tax_id" string="DIČ" invisible="needs_invoice == False" />
+                            <field name="invoice_vat" string="IČ" invisible="needs_invoice == False" />
+                            <field name="invoice_address" string="Adresa" invisible="needs_invoice == False" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for Jízdenky menu -->
+    <record id="modern_bus_jizdenky_action" model="ir.actions.act_window">
+        <field name="name">Jízdenky</field>
+        <field name="res_model">modern.bus.reservation</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('modern_bus_reservation_jizdenky_kanban')}),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('modern_bus_reservation_jizdenky_tree')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('modern_bus_reservation_jizdenky_form')})]" />
+        <field name="search_view_id" ref="modern_bus_reservation_jizdenky_search" />
+        <field name="context">{'search_default_filter_today_future': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Žádné jízdenky k zobrazení
+            </p>
+            <p>
+                Zde uvidíte všechny rezervované a zakoupené jízdenky.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu item for Jízdenky in Bus Management -->
+    <menuitem id="bus_jizdenky_menu"
+              name="Jízdenky"
+              parent="ie_bus_ticket_admin.bus_bookings_menu"
+              action="modern_bus_jizdenky_action"
+              sequence="1" />
+
+</odoo>

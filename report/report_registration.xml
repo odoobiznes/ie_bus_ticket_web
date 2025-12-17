@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_ticket_report" model="ir.actions.report">
+        <field name="name">Jízdenka</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">ie_bus_ticket_web.ticket_report</field>
+        <field name="report_file">ie_bus_ticket_web.ticket_report</field>
+        <field name="print_report_name">'Jízdenka - %s' % (object.name)</field>
+    </record>
+
+    <record id="action_payment_confirmation_report" model="ir.actions.report">
+        <field name="name">Potvrzení o platbě</field>
+        <field name="model">modern.bus.reservation</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">ie_bus_ticket_web.payment_confirmation_report</field>
+        <field name="report_file">ie_bus_ticket_web.payment_confirmation_report</field>
+        <field name="print_report_name">'Potvrzeni_platby - %s' % (object.name)</field>
+    </record>
+</odoo>

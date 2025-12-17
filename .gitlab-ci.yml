@@ -1,0 +1,133 @@
+# GitLab CI/CD конфігурація для Modern Bus Booking
+
+stages:
+  - test
+  - deploy
+
+variables:
+  MODULE_NAME: "modern_bus_booking"
+  ODOO_VERSION: "19.0"
+
+# Тестування модуля
+test_module:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install flake8 pylint
+  script:
+    # Перевірка синтаксису Python
+    - python -m py_compile __init__.py
+    - python -m py_compile controllers/__init__.py  
+    - python -m py_compile controllers/main.py
+    - find models -name "*.py" -exec python -m py_compile {} \; 2>/dev/null || true
+    
+    # Перевірка стилю коду
+    - flake8 --max-line-length=120 --ignore=E501,W503 controllers/ models/ || true
+    
+    # Перевірка структури модуля
+    - test -f __manifest__.py
+    - test -f views/templates.xml
+    - test -f static/src/css/modern_booking.css
+    
+    # Перевірка manifest файлу
+    - python -c "import ast; ast.parse(open('__manifest__.py').read())"
+    
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Розгортання на тестовий сервер
+deploy_staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client rsync curl
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $STAGING_SERVER >> ~/.ssh/known_hosts
+  script:
+    - echo "Розгортання на тестовий сервер..."
+    - rsync -avz --delete 
+        --exclude='*.pyc' 
+        --exclude='__pycache__' 
+        --exclude='.git' 
+        --exclude='.gitlab-ci.yml'
+        ./ $STAGING_USER@$STAGING_SERVER:$STAGING_PATH/$MODULE_NAME/
+    - ssh $STAGING_USER@$STAGING_SERVER "
+        sudo chown -R odoo:odoo $STAGING_PATH/$MODULE_NAME &&
+        sudo chmod -R 755 $STAGING_PATH/$MODULE_NAME &&
+        sudo systemctl restart odoo"
+    - sleep 10
+    - curl -f http://$STAGING_SERVER/bus-booking || echo "Попередження: модуль може бути недоступний"
+  environment:
+    name: staging
+    url: http://$STAGING_SERVER/bus-booking
+  only:
+    - develop
+
+# Розгортання на продакшн сервер
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client rsync curl
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H devops.it-enterprise.cz >> ~/.ssh/known_hosts
+  script:
+    - echo "Розгортання на продакшн сервер..."
+    
+    # Створення резервної копії
+    - ssh $PROD_USER@devops.it-enterprise.cz "
+        if [[ -d '$PROD_PATH/$MODULE_NAME' ]]; then
+          sudo cp -r '$PROD_PATH/$MODULE_NAME' '$PROD_PATH/${MODULE_NAME}_backup_$(date +%Y%m%d_%H%M%S)';
+        fi"
+    
+    # Розгортання нової версії
+    - rsync -avz --delete 
+        --exclude='*.pyc' 
+        --exclude='__pycache__' 
+        --exclude='.git' 
+        --exclude='.gitlab-ci.yml'
+        --exclude='deploy.sh'
+        ./ $PROD_USER@devops.it-enterprise.cz:$PROD_PATH/$MODULE_NAME/
+    
+    # Налаштування прав та перезапуск
+    - ssh $PROD_USER@devops.it-enterprise.cz "
+        sudo chown -R odoo:odoo $PROD_PATH/$MODULE_NAME &&
+        sudo chmod -R 755 $PROD_PATH/$MODULE_NAME &&
+        sudo systemctl restart odoo"
+    
+    # Перевірка доступності
+    - sleep 15
+    - curl -f https://devops.it-enterprise.cz/bus-booking
+    
+  environment:
+    name: production
+    url: https://devops.it-enterprise.cz/bus-booking
+  when: manual
+  only:
+    - main
+
+# Очищення старих резервних копій
+cleanup_backups:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H devops.it-enterprise.cz >> ~/.ssh/known_hosts
+  script:
+    - ssh $PROD_USER@devops.it-enterprise.cz "
+        find $PROD_PATH -name '${MODULE_NAME}_backup_*' -type d -mtime +7 -exec sudo rm -rf {} \; 2>/dev/null || true"
+  when: manual
+  only:
+    - main

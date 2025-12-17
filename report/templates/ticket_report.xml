@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_ticket" name="Ticket Report">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <div class="page">
+                    <div class="oe_structure"/>
+                    <div class="row">
+                        <div class="col-12">
+                            <h1>Jízdenka <t t-esc="doc.name"/></h1>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <td><strong>Číslo jízdenky:</strong></td>
+                                    <td><t t-esc="doc.name"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Linka:</strong></td>
+                                    <td><t t-esc="doc.route_display or 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Datum:</strong></td>
+                                    <td><t t-esc="doc.trip_date.strftime('%d.%m.%Y') if doc.trip_date else 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Odkud:</strong></td>
+                                    <td><t t-esc="doc.boarding_point.name if doc.boarding_point else 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Kam:</strong></td>
+                                    <td><t t-esc="doc.dropping_point.name if doc.dropping_point else 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Sedadlo:</strong></td>
+                                    <td><t t-esc="doc.selected_seats or 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Cestující:</strong></td>
+                                    <td><t t-esc="doc.passenger_name"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td><t t-esc="doc.passenger_email"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Telefon:</strong></td>
+                                    <td><t t-esc="doc.passenger_phone"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td><t t-esc="dict(doc._fields['status'].selection)[doc.status]"/></td>
+                                </tr>
+                            </table>
+                            <div t-if="doc.qr_code" style="text-align: center; margin-top: 20px;">
+                                <p><strong>QR Kód:</strong></p>
+                                <img t-attf-src="data:image/png;base64,{{doc.qr_code.decode('utf-8') if isinstance(doc.qr_code, bytes) else doc.qr_code}}" style="max-width: 200px;"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

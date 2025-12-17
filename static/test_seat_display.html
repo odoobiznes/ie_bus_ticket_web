@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Seat Display</title>
+    <link rel="stylesheet" type="text/css" href="src/css/modern_booking.css"/>
+    <style>
+        body { padding: 20px; background: #f5f5f5; }
+        .test-info { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>Test Seat Display - Standalone HTML</h2>
+        <p>This page tests if the CSS is properly applied to seat elements.</p>
+    </div>
+    
+    <div class="seat-layout-container">
+        <h2>Test Seats Layout</h2>
+        <div class="bus-layout" id="busLayout">
+            <!-- Test seat rows -->
+            <div class="seat-row">
+                <div class="seat available">1A</div>
+                <div class="seat available">1B</div>
+                <div class="seat aisle"></div>
+                <div class="seat booked">1C</div>
+                <div class="seat selected">1D</div>
+            </div>
+            <div class="seat-row">
+                <div class="seat available">2A</div>
+                <div class="seat available">2B</div>
+                <div class="seat aisle"></div>
+                <div class="seat available">2C</div>
+                <div class="seat available">2D</div>
+            </div>
+        </div>
+        
+        <div class="seat-legend">
+            <div class="legend-item">
+                <div class="legend-seat available"></div>
+                <span>Available</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-seat selected selected-legend"></div>
+                <span>Selected</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-seat booked"></div>
+                <span>Booked</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

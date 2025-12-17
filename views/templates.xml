@@ -1,0 +1,1150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="bus_booking_search_template" name="Modern Bus Booking Search">
+        <t t-call="website.layout">
+            <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+            </t>
+            <div class="modern-bus-booking">
+                <div class="modern-search-container">
+                    <div class="text-center mb-4">
+                        <h1 class="display-4 text-white mb-3">Подорожуй з комфортом </h1>
+                        <p class="lead text-white">Обирай Symchera BUS </p>
+                    </div>
+
+                    <form method="post" class="modern-search-form" action="/bus-booking/search-routes" id="busSearchForm">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <div class="modern-form-row">
+                            <div class="modern-form-group">
+                                <select name="start_point" id="start_point" class="modern-form-control" required="true">
+                                    <option value="">Звідки</option>
+                                    <t t-foreach="points" t-as="point">
+                                        <option t-att-value="point.id" t-esc="point.name"/>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div class="modern-form-group">
+                                <select name="end_point" id="end_point" class="modern-form-control" disabled="disabled">
+                                    <option value="">Куди (необов'язково)</option>
+                                </select>
+                            </div>
+
+                            <div class="modern-form-group">
+                                <input type="date" name="travel_date" id="travel_date" class="modern-form-control"
+                                       t-att-value="default_date_iso"  required="true"/>
+                            </div>
+
+                            <div class="modern-form-group">
+                            <button type="submit" class="modern-btn-search" name="search_submit">
+                                <i class="fa fa-search"></i> Пошук
+                            </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Upcoming routes hint container -->
+                    <div id="upcomingRoutesHint" class="upcoming-routes-hint" style="display: none; margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.95); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <h4 style="margin: 0 0 10px 0; color: #004aad; font-size: 14px;">
+                            <i class="fa fa-clock-o"></i> Найближчі рейси з цієї зупинки:
+                        </h4>
+                        <div id="upcomingRoutesList"></div>
+                    </div>
+
+                    <script type="text/javascript">
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var startPointSelect = document.getElementById('start_point');
+                            var endPointSelect = document.getElementById('end_point');
+                            var upcomingHint = document.getElementById('upcomingRoutesHint');
+                            var upcomingList = document.getElementById('upcomingRoutesList');
+
+                            startPointSelect.addEventListener('change', function() {
+                                var startPointId = this.value;
+
+                                // Clear and disable end point
+                                endPointSelect.innerHTML = '<option value="">Завантаження...</option>';
+                                endPointSelect.disabled = true;
+
+                                // Hide upcoming routes hint
+                                upcomingHint.style.display = 'none';
+                                upcomingList.innerHTML = '';
+
+                                if (!startPointId) {
+                                    endPointSelect.innerHTML = '<option value="">Куди (необов\'язково)</option>';
+                                    return;
+                                }
+
+                                // Fetch available destinations
+                                fetch('/bus-booking/get-destinations', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        jsonrpc: '2.0',
+                                        method: 'call',
+                                        params: { start_point_id: startPointId },
+                                        id: Math.floor(Math.random() * 1000000)
+                                    })
+                                })
+                                .then(function(response) { return response.json(); })
+                                .then(function(data) {
+                                    var destinations = data.result || [];
+
+                                    endPointSelect.innerHTML = '<option value="">Куди (необов\'язково)</option>';
+
+                                    if (destinations.length === 0) {
+                                        endPointSelect.innerHTML = '<option value="">Немає доступних напрямків</option>';
+                                        return;
+                                    }
+
+                                    destinations.forEach(function(dest) {
+                                        var option = document.createElement('option');
+                                        option.value = dest.id;
+                                        option.textContent = dest.name;
+                                        endPointSelect.appendChild(option);
+                                    });
+
+                                    endPointSelect.disabled = false;
+                                })
+                                .catch(function(error) {
+                                    console.error('Error fetching destinations:', error);
+                                    endPointSelect.innerHTML = '<option value="">Помилка завантаження</option>';
+                                });
+
+                                // Fetch upcoming routes from this stop (hint)
+                                fetch('/bus-booking/upcoming-routes', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        jsonrpc: '2.0',
+                                        method: 'call',
+                                        params: { start_point_id: startPointId },
+                                        id: Math.floor(Math.random() * 1000000)
+                                    })
+                                })
+                                .then(function(response) { return response.json(); })
+                                .then(function(data) {
+                                    var routes = data.result || [];
+
+                                    if (routes.length === 0) {
+                                        return;
+                                    }
+
+                                    var html = '';
+                                    routes.forEach(function(route) {
+                                        var dateLabel = route.is_today ? '<span style="color: #28a745; font-weight: bold;">Сьогодні</span>' : route.departure_date;
+                                        html += '<div style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px;">';
+                                        html += '<span style="color: #004aad; font-weight: bold;">' + route.departure_time + '</span> ';
+                                        html += '<span style="color: #666;">' + dateLabel + '</span> → ';
+                                        html += '<span style="color: #333;">' + route.destinations + '</span>';
+                                        html += '</div>';
+                                    });
+
+                                    upcomingList.innerHTML = html;
+                                    upcomingHint.style.display = 'block';
+                                })
+                                .catch(function(error) {
+                                    console.error('Error fetching upcoming routes:', error);
+                                });
+                            });
+                        });
+                    </script>
+
+                    <!-- Features Section -->
+                    <div class="clean-features-section">
+                        <div class="container">
+                            <div class="clean-features-grid">
+                                <div class="clean-feature-item">
+                                    <div class="clean-feature-icon">
+                                        <i class="fa fa-bus" style="color: #004aad; font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h3 class="clean-feature-title">Сучасні автобуси</h3>
+                                    <p class="clean-feature-description">Наша компанія надає безпечний та комфортний транспорт для перевезення пасажирів найкращими послугами по всій Україні та за кордоном.</p>
+                                </div>
+                                <div class="clean-feature-item">
+                                    <div class="clean-feature-icon">
+                                        <i class="fa fa-user-tie" style="color: #004aad; font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h3 class="clean-feature-title">Кваліфіковані водії</h3>
+                                    <p class="clean-feature-description">Ми приділяємо професіоналізму та кваліфікації наших водіїв, що забезпечує безпеку та комфорт наших пасажирів під час подорожі.</p>
+                                </div>
+                                <div class="clean-feature-item">
+                                    <div class="clean-feature-icon">
+                                        <i class="fa fa-wifi" style="color: #004aad; font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h3 class="clean-feature-title">Безкоштовний Wi-Fi</h3>
+                                    <p class="clean-feature-description">Наші пасажири можуть залишатися на зв'язку під час подорожі завдяки швидкісному та надійному Wi-Fi підключенню в нашому транспорті.</p>
+                                </div>
+                                <div class="clean-feature-item">
+                                    <div class="clean-feature-icon">
+                                        <i class="fa fa-undo" style="color: #004aad; font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h3 class="clean-feature-title">Бронювання онлайн 24/7</h3>
+                                    <p class="clean-feature-description">Ми надаємо онлайн-сервіс бронювання, доступний цілодобово, щоб наші клієнти могли зручно та швидко забронювати квитки на наші рейси.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="testimonial-box">
+                        <p class="testimonial-text">
+                            "Ми не просто перевозимо пасажирів — ми створюємо комфортні умови для подорожей.
+                            Обираючи Symchera BUS, ви отримуєте впевненість у безпеці, комфорті та надійності кожної поїздки."
+                        </p>
+                        <p class="testimonial-footer">
+                            Обираючи Symchera BUS, ви обираєте комфортні подорожі без турбот.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </t>
+    </template>
+
+
+    <template id="bus_booking_results_template" name="Modern Bus Booking Results">
+        <t t-call="website.layout">
+            <t t-set="head">
+                <style>
+                    /* Ultra-compact mobile-first results v2 */
+                    .results-container-compact {
+                        background: #fff;
+                        border-radius: 16px;
+                        padding: 12px;
+                        margin: 10px;
+                    }
+                    .results-header-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-bottom: 12px;
+                    }
+                    .btn-back-circle {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 36px;
+                        height: 36px;
+                        background: #f0f4ff;
+                        border-radius: 50%;
+                        color: #004aad;
+                        font-size: 16px;
+                        text-decoration: none;
+                        flex-shrink: 0;
+                        transition: all 0.2s;
+                    }
+                    .btn-back-circle:hover {
+                        background: #004aad;
+                        color: #fff;
+                    }
+                    .results-header-row h2 {
+                        margin: 0;
+                        font-size: 1.1rem;
+                        color: #333;
+                        font-weight: 600;
+                    }
+                    .route-card-v2 {
+                        background: linear-gradient(135deg, #f8faff 0%, #fff 100%);
+                        border-radius: 12px;
+                        padding: 10px 12px;
+                        margin-bottom: 8px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+                        cursor: pointer;
+                        transition: all 0.15s;
+                        border: 1px solid #e8ecf4;
+                    }
+                    .route-card-v2:hover {
+                        box-shadow: 0 4px 12px rgba(0,74,173,0.15);
+                        border-color: #004aad;
+                    }
+                    .route-card-v2:active {
+                        transform: scale(0.98);
+                        background: #f0f4ff;
+                    }
+                    /* Row 1: Route name + trip# + price */
+                    .route-row1 {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 6px;
+                    }
+                    .route-name-info {
+                        display: flex;
+                        align-items: baseline;
+                        gap: 6px;
+                        font-weight: 600;
+                        color: #333;
+                        font-size: 0.9rem;
+                    }
+                    .trip-badge {
+                        background: #e8ecf4;
+                        color: #666;
+                        font-size: 0.7rem;
+                        padding: 2px 5px;
+                        border-radius: 4px;
+                        font-weight: 500;
+                    }
+                    .route-price-v2 {
+                        font-weight: 700;
+                        color: #004aad;
+                        font-size: 1rem;
+                        white-space: nowrap;
+                    }
+                    /* Row 2: Stations on one line */
+                    .route-row2 {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 0.85rem;
+                        margin-bottom: 4px;
+                    }
+                    .station-name {
+                        font-weight: 500;
+                        color: #333;
+                    }
+                    .station-arrow {
+                        color: #004aad;
+                        font-size: 0.9rem;
+                    }
+                    /* Row 3: Times under stations */
+                    .route-row3 {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 0.8rem;
+                        color: #666;
+                        margin-bottom: 6px;
+                    }
+                    .time-chip {
+                        background: #f0f4ff;
+                        color: #004aad;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-weight: 600;
+                        font-size: 0.75rem;
+                    }
+                    /* Row 4: Date + seats compact */
+                    .route-row4 {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        font-size: 0.75rem;
+                        color: #888;
+                        padding-top: 6px;
+                        border-top: 1px solid #eef2f7;
+                    }
+                    .seats-badge {
+                        color: #28a745;
+                        font-weight: 600;
+                    }
+                    .tap-hint {
+                        text-align: center;
+                        font-size: 0.7rem;
+                        color: #aaa;
+                        margin-bottom: 8px;
+                    }
+                </style>
+                <script>
+                //<![CDATA[
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Direct navigation to seat selection - NO intermediate step
+                        document.querySelectorAll('.route-card-v2').forEach(function(card) {
+                            card.addEventListener('click', function() {
+                                var routeId = this.getAttribute('data-route-id');
+                                if (routeId) {
+                                    window.location.href = '/bus-booking/book?route_id=' + routeId;
+                                }
+                            });
+                        });
+                    });
+                //]]>
+                </script>
+            </t>
+            <div class="modern-bus-booking">
+                <div class="modern-search-container" style="padding: 10px;">
+                    <div class="text-center mb-3">
+                        <h1 class="text-white mb-1" style="font-size: 1.5rem;">🚌 Результати</h1>
+                    </div>
+
+                    <div class="results-container-compact">
+                        <!-- Header: back icon + title in ONE row -->
+                        <div class="results-header-row">
+                            <a href="/bus-booking" class="btn-back-circle" title="Назад">
+                                <i class="fa fa-arrow-left"></i>
+                            </a>
+                            <h2>Знайдені рейси</h2>
+                        </div>
+
+                        <t t-if="routes">
+                            <p class="tap-hint">👆 Торкніться рейсу → вибір місць</p>
+                            <t t-foreach="routes" t-as="route">
+                                <!-- Ultra-compact route card -->
+                                <div class="route-card-v2" t-att-data-route-id="route['id']">
+                                    <!-- Row 1: Name + Trip# | Price -->
+                                    <div class="route-row1">
+                                        <div class="route-name-info">
+                                            <span><t t-esc="route['name']"/></span>
+                                            <span class="trip-badge" t-if="route.get('trip_id')">#<t t-esc="route.get('trip_id', '')"/></span>
+                                        </div>
+                                        <span class="route-price-v2"><t t-esc="int(route['price'])"/> ₴</span>
+                                    </div>
+                                    <!-- Row 2: Stations horizontal -->
+                                    <div class="route-row2">
+                                        <span class="station-name"><t t-esc="route['start_point']"/></span>
+                                        <span class="station-arrow">→</span>
+                                        <span class="station-name"><t t-esc="route['end_point']"/></span>
+                                    </div>
+                                    <!-- Row 3: Times -->
+                                    <div class="route-row3">
+                                        <span class="time-chip"><t t-esc="route['start_time']"/></span>
+                                        <span>→</span>
+                                        <span class="time-chip"><t t-esc="route['end_time']"/></span>
+                                    </div>
+                                    <!-- Row 4: Date + Seats on ONE line -->
+                                    <div class="route-row4">
+                                        <span>📅 <t t-esc="route['date']"/></span>
+                                        <span class="seats-badge">🪑 <t t-esc="route['available_seats']"/> місць</span>
+                                    </div>
+                                </div>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <!-- No routes message with caring tone -->
+                            <div style="background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); border-radius: 12px; padding: 12px 15px; margin-bottom: 12px;">
+                                <p style="margin: 0 0 8px 0; font-size: 0.9rem; color: #5d4037;">
+                                    😔 На обраний день немає рейсів або час відправлення минув.
+                                </p>
+                                <p style="margin: 0; font-size: 0.95rem; color: #2e7d32; font-weight: 600;">
+                                    💚 Але <strong>SymcheraBUS</strong> вас не залишить! Пропонуємо:
+                                </p>
+                            </div>
+
+                            <t t-if="next_route">
+                                <!-- Compact next route card - no extra padding -->
+                                <div class="next-route-card" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; padding: 12px; margin: 0;">
+                                    <!-- Row 1: Route name + seats -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <span style="font-size: 1rem; font-weight: 700; color: #1b5e20;">
+                                            <t t-esc="next_route['start_point']"/> → <t t-esc="next_route['end_point']"/>
+                                        </span>
+                                        <span style="background: #4caf50; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;">
+                                            👥 <t t-esc="next_route['available_seats']"/>
+                                        </span>
+                                    </div>
+                                    <!-- Row 2: Date + Time -->
+                                    <div style="display: flex; gap: 12px; font-size: 0.85rem; color: #33691e; margin-bottom: 10px;">
+                                        <span>📅 <t t-esc="next_route['date']"/></span>
+                                        <span>🕐 <t t-esc="next_route['start_time']"/> - <t t-esc="next_route['end_time']"/></span>
+                                    </div>
+                                    <!-- Row 3: Price button centered -->
+                                    <div style="text-align: center;">
+                                        <a t-attf-href="/bus-booking/book?route_id=#{next_route['route_id']}"
+                                           style="display: inline-block; background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%); color: #fff; padding: 10px 30px; border-radius: 25px; font-size: 1.1rem; font-weight: 700; text-decoration: none; box-shadow: 0 3px 8px rgba(46,125,50,0.3); transition: all 0.2s;">
+                                            🎫 <t t-esc="int(next_route['price'])"/> ₴
+                                        </a>
+                                    </div>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; padding: 12px 15px;">
+                                    <p style="margin: 0; color: #1565c0; font-size: 0.85rem;">
+                                        📞 На найближчі 14 днів немає рейсів. Зателефонуйте нам!
+                                    </p>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="bus_booking_confirmation_template" name="Modern Bus Booking Confirmation">
+        <t t-call="website.layout">
+
+            <div class="confirmation-container">
+                <div class="confirmation-card">
+                    <div class="success-icon">
+                        <i class="fa fa-check"></i>
+                    </div>
+
+                    <h1 class="confirmation-title">
+                        Шановний/а <t t-esc="reservation.passenger_name"/>,
+                    </h1>
+                    <p class="confirmation-subtitle">
+                        Ваше бронювання успішно прийнято! <span class="unpaid-status">НЕОПЛАЧЕНО</span>
+                    </p>
+
+                    <div class="reservation-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Номер бронювання:</span>
+                            <span class="detail-value reservation-number">
+                                <t t-esc="reservation.name"/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Маршрут:</span>
+                            <span class="detail-value">
+                                <t t-esc="reservation.route_id.bording_from.name"/> → <t t-esc="reservation.route_id.to.name"/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Дата відправлення:</span>
+                            <span class="detail-value">
+                                <t t-esc="reservation.route_id.trip_date" t-options='{"widget": "date", "format": "dd.MM.yyyy"}'/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Обрані місця:</span>
+                            <span class="detail-value">
+                                <t t-esc="reservation.selected_seats"/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Кількість місць:</span>
+                            <span class="detail-value">
+                                <t t-esc="len(reservation.selected_seats.split(','))"/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Загальна ціна:</span>
+                            <span class="detail-value total-price">
+                                <t t-esc="total_price"/> UAH
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="warning-box urgent">
+                        <h4><i class="fa fa-exclamation-triangle"></i> НЕОПЛАЧЕНЕ БРОНЮВАННЯ - ВАЖЛИВО!</h4>
+                        <p>
+                            Зв'яжіться з диспетчером не пізніше ніж <strong>за 3 години до відправлення автобуса зі зупинки <t t-esc="boarding_point_name"/></strong>,
+                            інакше бронювання буде автоматично скасовано.
+                        </p>
+                        <p class="contact-info">
+                            <strong>Контакт диспетчера:</strong><br/>
+                            <i class="fa fa-phone"></i> <a href="tel:+380739065165">+380 739 065 165</a> |
+                            <a href="tel:+420447617002">+420 447 617 002</a> |
+                            <a href="tel:+380673124850">+380 673 124 850</a><br/>
+                            <i class="fa fa-envelope"></i> <a href="mailto:symchera@email.cz">symchera@email.cz</a>
+                        </p>
+                        <p class="contact-info">
+                            <strong>Бронювання закінчується:</strong> <t t-esc="expiry_time"/> (за 3 години до відправлення)
+                        </p>
+                    </div>
+
+                    <div class="action-buttons">
+                        <a t-att-href="'/bus-booking/pay?reservation_id=%s' % reservation.id" class="btn-pay" t-att-onclick="'console.log(&quot;Navigating to payment for reservation: %s&quot;)' % reservation.id">
+                            <i class="fa fa-credit-card"></i> Оплатити
+                        </a>
+                        <a href="/bus-booking" class="btn-home">
+                            <i class="fa fa-home"></i> На головну
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </t>
+    </template>
+
+        <template id="bus_booking_book_template" name="Modern Bus Booking - Seat Selection">
+            <t t-call="website.layout">
+                <t t-set="head">
+                    <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+                    <style>
+                        /* Compact seat selection page */
+                        .seat-selection-v2 { padding: 10px; max-width: 600px; margin: 0 auto; }
+                        .header-row-v2 { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+                        .btn-back-circle { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #fff; border: 2px solid #004aad; border-radius: 50%; color: #004aad; font-size: 18px; text-decoration: none; flex-shrink: 0; }
+                        .btn-back-circle:hover { background: #004aad; color: #fff; }
+                        .header-row-v2 h1 { margin: 0; font-size: 1.4rem; color: #333; }
+
+                        /* Route info table */
+                        .route-table-v2 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 12px 15px; margin-bottom: 12px; color: #fff; }
+                        .route-table-row1 { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+                        .route-table-row2 { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; opacity: 0.95; }
+                        .route-price-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-weight: 700; }
+
+                        /* Seat layout compact */
+                        .seat-box-v2 { background: #fff; border-radius: 12px; padding: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+                        .bus-layout-v2 { display: flex; flex-direction: column; gap: 6px; }
+                        .seat-row-v2 { display: flex; justify-content: center; gap: 6px; }
+                        .seat-v2 { width: 52px; height: 44px; border-radius: 8px 8px 4px 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 600; font-size: 0.8rem; transition: all 0.15s; position: relative; border: none; }
+                        .seat-v2.available { background: linear-gradient(180deg, #81c784 0%, #66bb6a 100%); color: #1b5e20; box-shadow: 0 2px 4px rgba(102,187,106,0.3); }
+                        .seat-v2.available:hover { transform: scale(1.08); box-shadow: 0 4px 8px rgba(102,187,106,0.4); }
+                        .seat-v2.selected { background: linear-gradient(180deg, #64b5f6 0%, #42a5f5 100%); color: #fff; box-shadow: 0 2px 6px rgba(66,165,245,0.4); }
+                        .seat-v2.booked { background: linear-gradient(180deg, #bdbdbd 0%, #9e9e9e 100%); color: #616161; cursor: not-allowed; }
+                        .seat-v2.reserved { background: linear-gradient(180deg, #ffb74d 0%, #ffa726 100%); color: #e65100; cursor: not-allowed; }
+                        .seat-v2::before { content: ''; position: absolute; top: 2px; left: 4px; right: 4px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 4px 4px 0 0; }
+                        .seat-aisle-v2 { width: 30px; visibility: hidden; }
+                        .seat-v2 .user-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+                        .seat-v2.booked .seat-icon { font-size: 1.2rem; }
+
+                        /* Passenger form compact */
+                        .form-box-v2 { background: #fff; border-radius: 12px; padding: 12px 15px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+                        .form-box-v2 .form-group { margin-bottom: 10px; }
+                        .form-box-v2 label { font-size: 0.85rem; color: #666; margin-bottom: 4px; display: block; }
+                        .form-box-v2 input { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 1rem; }
+                        .form-box-v2 input:focus { border-color: #004aad; outline: none; box-shadow: 0 0 0 2px rgba(0,74,173,0.1); }
+
+                        /* Order summary compact */
+                        .summary-box-v2 { background: #f5f5f5; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+                        .summary-box-v2 p { margin: 4px 0; font-size: 0.9rem; display: flex; justify-content: space-between; }
+                        .summary-box-v2 .price-display { font-weight: 700; color: #004aad; font-size: 1.1rem; }
+
+                        /* Action buttons */
+                        .btn-reserve-v2 { width: 100%; padding: 14px; background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%); color: #fff; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+                        .btn-reserve-v2:hover { background: linear-gradient(135deg, #388e3c 0%, #1b5e20 100%); }
+                        .btn-buy-v2 { width: 100%; padding: 14px; background: linear-gradient(135deg, #5c6bc0 0%, #3949ab 100%); color: #fff; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 600; cursor: pointer; }
+                        .btn-buy-v2:hover { background: linear-gradient(135deg, #3f51b5 0%, #283593 100%); }
+                    </style>
+                </t>
+
+                <div class="seat-selection-v2">
+                    <!-- Header with back button and title -->
+                    <div class="header-row-v2">
+                        <a href="/bus-booking/search-routes" class="btn-back-circle" title="Назад">
+                            <i class="fa fa-arrow-left"></i>
+                        </a>
+                        <h1>Вибір місць</h1>
+                    </div>
+
+                    <!-- Route info table -->
+                    <div class="route-table-v2">
+                        <div class="route-table-row1">
+                            <span><t t-esc="route.bording_from.name"/> → <t t-esc="route.to.name"/></span>
+                            <span t-field="route.trip_date" t-options='{"widget": "date"}'/>
+                        </div>
+                        <div class="route-table-row2">
+                            <span>🕐 <t t-esc="departure_time or '—'"/> → <t t-esc="arrival_time or '—'"/></span>
+                            <span class="route-price-badge"><t t-esc="int(route.price)"/> ₴</span>
+                        </div>
+                    </div>
+
+                    <!-- Seat layout box -->
+                    <div class="seat-box-v2">
+                        <div class="bus-layout-v2" id="busLayout">
+                            <t t-set="total_rows" t-value="row_count or 15"/>
+                            <t t-foreach="range(1, total_rows + 1)" t-as="row_num">
+                                <div class="seat-row-v2">
+                                    <div t-att-id="'seat_' + str(row_num) + '_1'"
+                                         t-att-data-seat-id="str(row_num) + '_1'"
+                                         class="seat-v2 available"
+                                         onclick="window.modernBusBooking_toggleSeat(this.dataset.seatId)">
+                                        <t t-esc="str(row_num) + 'A'"/>
+                                    </div>
+                                    <div t-att-id="'seat_' + str(row_num) + '_2'"
+                                         t-att-data-seat-id="str(row_num) + '_2'"
+                                         class="seat-v2 available"
+                                         onclick="window.modernBusBooking_toggleSeat(this.dataset.seatId)">
+                                        <t t-esc="str(row_num) + 'B'"/>
+                                    </div>
+                                    <div class="seat-aisle-v2"></div>
+                                    <div t-att-id="'seat_' + str(row_num) + '_3'"
+                                         t-att-data-seat-id="str(row_num) + '_3'"
+                                         class="seat-v2 available"
+                                         onclick="window.modernBusBooking_toggleSeat(this.dataset.seatId)">
+                                        <t t-esc="str(row_num) + 'C'"/>
+                                    </div>
+                                    <div t-att-id="'seat_' + str(row_num) + '_4'"
+                                         t-att-data-seat-id="str(row_num) + '_4'"
+                                         class="seat-v2 available"
+                                         onclick="window.modernBusBooking_toggleSeat(this.dataset.seatId)">
+                                        <t t-esc="str(row_num) + 'D'"/>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <!-- Order summary -->
+                    <div class="summary-box-v2" id="selectedSeatsInfo" style="display: none;">
+                        <p><span>Місця:</span> <span id="selectedSeatsList"></span></p>
+                        <p><span>Кількість:</span> <span id="seatCount">0</span></p>
+                        <p><span>Разом:</span> <span id="totalPrice" class="price-display">0 ₴</span></p>
+                    </div>
+
+                    <!-- Passenger form -->
+                    <div class="form-box-v2">
+                        <form id="bookingForm">
+                            <input type="hidden" id="routeId" t-att-value="route.id"/>
+                            <input type="hidden" id="selectedSeats" name="selected_seats"/>
+                            <input type="hidden" id="boarding_point" name="boarding_point" t-att-value="route.bording_from.id"/>
+                            <input type="hidden" id="dropping_point" name="dropping_point" t-att-value="route.to.id"/>
+
+                            <div class="form-group">
+                                <label for="passenger_name">Повне ім'я *</label>
+                                <input type="text" id="passenger_name" name="passenger_name" placeholder="Введіть ім'я" required="true"/>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="passenger_email">Email *</label>
+                                <input type="email" id="passenger_email" name="passenger_email" placeholder="email@example.com" required="true"/>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="passenger_phone">Телефон *</label>
+                                <input type="tel" id="passenger_phone" name="passenger_phone" placeholder="+380..." required="true"/>
+                            </div>
+
+                            <button type="button" class="btn-reserve-v2" onclick="window.reserveSeats()">
+                                <i class="fa fa-clock-o"></i> Забронювати
+                            </button>
+                            <button type="button" class="btn-buy-v2" onclick="window.buyTickets()">
+                                <i class="fa fa-credit-card"></i> Купити та оплатити
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Data elements for JavaScript -->
+                <div id="priceData" t-att-data-price="price_per_seat or route.price or 0" style="display:none;"></div>
+                <div id="routeData" t-att-data-route-id="route.id" style="display:none;"></div>
+
+                <script type="application/json" id="seatDataJson"><t t-raw="seat_data_json"/></script>
+                <script>
+                    //<![CDATA[
+                    (function() {
+                        // --- STATE ---
+                        window.selectedSeats = [];
+                        window.pricePerSeat = 0;
+                        window.seatData = {};
+
+                        // --- CORE FUNCTIONS ---
+                        window.modernBusBooking_toggleSeat = function(seatId) {
+                            try {
+                                var seat = document.getElementById('seat_' + seatId);
+                                if (!seat || seat.classList.contains('booked') || seat.classList.contains('reserved')) return;
+
+                                var index = window.selectedSeats.indexOf(seatId);
+                                if (index > -1) {
+                                    window.selectedSeats.splice(index, 1);
+                                    seat.classList.remove('selected');
+                                    seat.classList.add('available');
+                                } else {
+                                    window.selectedSeats.push(seatId);
+                                    seat.classList.add('selected');
+                                    seat.classList.remove('available');
+                                }
+                                window.updateSelectedSeatsDisplay();
+                            } catch (e) {
+                                console.error('Error in toggleSeat:', e);
+                            }
+                        };
+
+                        window.updateSelectedSeatsDisplay = function() {
+                            var info = document.getElementById('selectedSeatsInfo');
+                            if (!info) return;
+
+                            var list = document.getElementById('selectedSeatsList');
+                            var count = document.getElementById('seatCount');
+                            var totalPriceEl = document.getElementById('totalPrice');
+                            var hidden = document.getElementById('selectedSeats');
+
+                            // Convert seat IDs to readable format (e.g., "1_1" -> "1A")
+                            var readableSeats = window.selectedSeats.map(function(sid) {
+                                var parts = sid.split('_');
+                                var row = parts[0];
+                                var col = parseInt(parts[1]);
+                                var colLetter = ['A', 'B', 'C', 'D'][col - 1] || col;
+                                return row + colLetter;
+                            });
+
+                            if (window.selectedSeats.length > 0) {
+                                info.style.display = 'block';
+                                list.textContent = readableSeats.join(', ');
+                                hidden.value = window.selectedSeats.join(',');
+                                count.textContent = window.selectedSeats.length;
+                                totalPriceEl.textContent = Math.round(window.pricePerSeat * window.selectedSeats.length) + ' ₴';
+                            } else {
+                                info.style.display = 'none';
+                                hidden.value = '';
+                            }
+                        };
+
+                        // --- INITIALIZATION ---
+                        function initialize() {
+                            var priceEl = document.getElementById('priceData');
+                            if (priceEl) {
+                                window.pricePerSeat = parseFloat(priceEl.dataset.price) || 0;
+                            }
+
+                            var seatDataEl = document.getElementById('seatDataJson');
+                            if (seatDataEl) {
+                                try {
+                                    window.seatData = JSON.parse(seatDataEl.textContent || '{}');
+                                } catch (e) {
+                                    console.error('Failed to parse seat data:', e);
+                                }
+                            }
+
+                            // Mark booked seats (paid)
+                            if (window.seatData.booked_seat) {
+                                window.seatData.booked_seat.forEach(function(sid) {
+                                    var s = document.getElementById('seat_' + sid);
+                                    if (s) {
+                                        s.classList.remove('available');
+                                        s.classList.add('booked');
+                                        s.innerHTML = '<span class="seat-icon">👤</span>';
+                                        s.onclick = null;
+                                    }
+                                });
+                            }
+                            // Mark reserved seats (unpaid)
+                            if (window.seatData.reserved_seat) {
+                                window.seatData.reserved_seat.forEach(function(sid) {
+                                    var s = document.getElementById('seat_' + sid);
+                                    if (s) {
+                                        s.classList.remove('available');
+                                        s.classList.add('reserved');
+                                        s.innerHTML = '<span class="seat-icon">⏳</span>';
+                                        s.onclick = null;
+                                    }
+                                });
+                            }
+
+                            // Initialize dropping point selector
+                            var droppingSelect = document.getElementById('droppingPointSelect');
+                            if (droppingSelect) {
+                                droppingSelect.addEventListener('change', function() {
+                                    var selectedOption = this.options[this.selectedIndex];
+                                    var newPrice = parseFloat(selectedOption.dataset.price) || 0;
+                                    var newId = this.value;
+
+                                    // Update global price
+                                    window.pricePerSeat = newPrice;
+
+                                    // Update hidden input
+                                    var hiddenInput = document.getElementById('dropping_point');
+                                    if (hiddenInput) hiddenInput.value = newId;
+
+                                    // Update display
+                                    var badge = document.querySelector('.route-price-badge');
+                                    if (badge) badge.textContent = Math.round(newPrice) + ' ₴';
+
+                                    // Recalculate totals
+                                    window.updateSelectedSeatsDisplay();
+                                });
+                            }
+                        }
+
+                        document.addEventListener('DOMContentLoaded', initialize);
+
+                        // --- FORM ACTIONS ---
+                        function validateForm() {
+                            if (window.selectedSeats.length === 0) {
+                                alert('Vyberte prosím alespoň jedno sedadlo');
+                                return false;
+                            }
+                            var form = document.getElementById('bookingForm');
+                            if (!form.checkValidity()) {
+                                alert('Vyplňte prosím všechna povinná pole');
+                                return false;
+                            }
+                            return true;
+                        }
+
+                        window.reserveSeats = function() {
+                            if (!validateForm()) return;
+                            var formData = new FormData(document.getElementById('bookingForm'));
+                            var data = {
+                                route_id: document.getElementById('routeId').value,
+                                selected_seats: window.selectedSeats,
+                                passenger_name: formData.get('passenger_name'),
+                                passenger_email: formData.get('passenger_email'),
+                                passenger_phone: formData.get('passenger_phone'),
+                                boarding_point: formData.get('boarding_point'),
+                                dropping_point: formData.get('dropping_point')
+                            };
+                            fetch('/bus-booking/reserve', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: data })
+                            })
+                            .then(function(response) { return response.json(); })
+                            .then(function(result) {
+                                if (result.result && result.result.success) {
+                                    window.location.href = result.result.redirect_url;
+                                } else {
+                                    alert(result.result ? result.result.message : 'Chyba při rezervaci');
+                                }
+                            })
+                            .catch(function(error) {
+                                console.error('Error:', error);
+                                alert('Помилка при створенні резервації');
+                            });
+                        };
+
+                        window.buyTickets = function() {
+                            if (!validateForm()) return;
+                            var formData = new FormData(document.getElementById('bookingForm'));
+                            var data = {
+                                route_id: document.getElementById('routeId').value,
+                                selected_seats: window.selectedSeats,
+                                passenger_name: formData.get('passenger_name'),
+                                passenger_email: formData.get('passenger_email'),
+                                passenger_phone: formData.get('passenger_phone'),
+                                boarding_point: formData.get('boarding_point'),
+                                dropping_point: formData.get('dropping_point')
+                            };
+                            fetch('/bus-booking/reserve', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: data })
+                            })
+                            .then(function(response) { return response.json(); })
+                            .then(function(result) {
+                                if (result.result && result.result.success) {
+                                    var rid = result.result.reservation_id;
+                                    if (rid) {
+                                        window.location.href = '/bus-booking/pay?reservation_id=' + rid;
+                                    } else if (result.result.redirect_url) {
+                                        window.location.href = result.result.redirect_url;
+                                    } else {
+                                        alert('Rezervace proběhla, ale chybí ID.');
+                                    }
+                                } else {
+                                    alert(result.result ? result.result.message : 'Chyba při nákupu');
+                                }
+                            })
+                            .catch(function(error) {
+                                console.error('Error:', error);
+                                alert('Помилка при створенні резервації');
+                            });
+                        };
+
+                    })();
+                    //]]>
+                </script>
+            </t>
+        </template>
+
+    <template id="bus_booking_payment_success_template" name="Modern Bus Booking Payment Success">
+        <t t-call="website.layout">
+            <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+            </t>
+
+            <div class="payment-success-container">
+                <div class="success-card">
+                    <div class="success-icon">
+                        <i class="fa fa-check"></i>
+                    </div>
+
+                    <h1 class="success-title">Платіж успішний!</h1>
+                    <p class="success-subtitle">
+                        Ваш квиток оплачено та готовий до використання
+                    </p>
+
+                    <div class="ticket-details">
+                        <div class="ticket-header">
+                            <h3>АВТОБУСНИЙ КВИТОК</h3>
+                            <div class="ticket-number">
+                                <t t-esc="reservation.name"/>
+                            </div>
+                        </div>
+
+                        <div class="detail-row">
+                            <span class="detail-label">Ім'я пасажира:</span>
+                            <span class="detail-value">
+                                <t t-esc="reservation.passenger_name"/>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Маршрут:</span>
+                            <span class="detail-value">
+                                <strong><t t-esc="reservation.route_id.bording_from.name"/></strong> →
+                                <strong><t t-esc="reservation.route_id.to.name"/></strong>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Дата та час відправлення:</span>
+                            <span class="detail-value">
+                                <strong><t t-esc="departure_time"/></strong>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Місця:</span>
+                            <span class="detail-value">
+                                <strong><t t-esc="reservation.selected_seats"/></strong>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Місце посадки:</span>
+                            <span class="detail-value">
+                                <t t-if="reservation.boarding_point" t-esc="reservation.boarding_point.name"/>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Місце висадки:</span>
+                            <span class="detail-value">
+                                <t t-if="reservation.dropping_point" t-esc="reservation.dropping_point.name"/>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Загальна ціна:</span>
+                            <span class="detail-value total-price">
+                                <strong><t t-esc="total_price"/> UAH</strong>
+                            </span>
+                        </div>
+
+                        <div class="qr-section" t-if="reservation.qr_code">
+                            <p>Відскануйте QR код при посадці:</p>
+                            <img t-att-src="'data:image/png;base64,%s' % reservation.qr_code.decode('utf-8')"
+                                 class="qr-code" alt="QR Code"/>
+                        </div>
+                    </div>
+
+                    <div class="info-box">
+                        <h4><i class="fa fa-info-circle"></i> Важлива інформація</h4>
+                        <p>• Прибудьте на місце посадки мінімум за 15 хвилин до відправлення</p>
+                        <p>• При посадці пред'явіть цей квиток (роздрукований або на телефоні)</p>
+                        <p>• Квиток непередавальний і дійсний тільки на вказану дату та рейс</p>
+                        <t t-if="hours_until_departure > 0">
+                            <p>• До відправлення залишилось: <strong><t t-esc="hours_until_departure"/> годин</strong></p>
+                        </t>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button onclick="window.print()" class="btn-print">
+                            <i class="fa fa-print"></i> Роздрукувати квиток
+                        </button>
+                        <a href="/bus-booking" class="btn-home">
+                            <i class="fa fa-home"></i> Нове бронювання
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+            //<![CDATA[
+                // Автоматичне перенаправлення через 10 секунд
+                setTimeout(function() {
+                    // Якщо користувач не встигне натиснути, перенаправляємо на головну
+                    if (!document.hidden) {
+                        console.log('Перенаправлення на головну сторінку...');
+                        // window.location.href = '/bus-booking';
+                    }
+                }, 10000);
+
+                // Показати сповіщення про успішний платіж
+                if (typeof odoo !== 'undefined' &amp;&amp; odoo.notification) {
+                    odoo.notification.notify({
+                        title: 'Платіж успішний!',
+                        message: 'Ваш квиток оплачено та готовий до використання.',
+                        type: 'success'
+                    });
+                }
+            //]]>
+            </script>
+        </t>
+    </template>
+
+    <!-- Add JavaScript to fix back button on checkout/payment pages -->
+    <template id="checkout_payment_back_fix" inherit_id="website.layout" name="Bus Booking Back Button Fix">
+        <xpath expr="//head" position="inside">
+            <!-- Add CSP meta tag to allow Google Analytics -->
+            <meta http-equiv="Content-Security-Policy"
+                  content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com;"/>
+
+            <script type="text/javascript">
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Fix back buttons on checkout and payment pages
+                    if (window.location.pathname.includes('/shop/checkout') ||
+                        window.location.pathname.includes('/shop/payment')) {
+
+                        // Find all links pointing to cart
+                        var cartLinks = document.querySelectorAll('a[href*="/shop/cart"]');
+                        cartLinks.forEach(function(link) {
+                            link.href = '/bus-booking/back';
+                            link.innerHTML = '<i class="fa fa-arrow-left"></i> Zpět na výběr míst';
+                        });
+
+                        // Also fix "Back to cart" text
+                        var backLinks = document.querySelectorAll('a.btn-link');
+                        backLinks.forEach(function(link) {
+                            if (link.textContent.includes('Back to cart') ||
+                                link.textContent.includes('cart') ||
+                                link.href.includes('/shop/cart')) {
+                                link.href = '/bus-booking/back';
+                                link.innerHTML = '<i class="fa fa-arrow-left"></i> Zpět na výběr míst';
+                            }
+                        });
+                    }
+                });
+            </script>
+        </xpath>
+    </template>
+
+    <!-- Hide Odoo branding/promotion in footer -->
+    <template id="hide_odoo_promotion" inherit_id="web.brand_promotion" name="Hide Odoo Promotion">
+        <xpath expr="//div[hasclass('o_brand_promotion')]" position="replace">
+            <div class="o_brand_promotion d-none"/>
+        </xpath>
+    </template>
+
+    <!-- Alternative: Hide via CSS -->
+    <template id="hide_odoo_footer_css" inherit_id="website.layout" name="Hide Odoo Footer CSS">
+        <xpath expr="//head" position="inside">
+            <style>
+                .o_brand_promotion,
+                .o_footer_copyright_name + a[href*="odoo"],
+                a[href*="odoo.com/app/website"],
+                .o_footer_copyright a[href*="odoo"] {
+                    display: none !important;
+                }
+
+                /* Center all footer content */
+                #footer, #bottom, footer#bottom {
+                    text-align: center !important;
+                }
+                #footer .container,
+                #footer .oe_structure,
+                #footer section {
+                    text-align: center !important;
+                }
+                #footer .row {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: center !important;
+                }
+                #footer [class*="col-"] {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    flex: 0 0 100% !important;
+                    text-align: center !important;
+                }
+                #footer ul {
+                    display: flex !important;
+                    flex-wrap: wrap !important;
+                    justify-content: center !important;
+                    padding-left: 0 !important;
+                    list-style: none !important;
+                }
+                #footer ul li {
+                    text-align: center !important;
+                }
+                #footer h2, #footer h3, #footer h4, #footer p {
+                    text-align: center !important;
+                }
+                #footer .s_share,
+                #footer .s_social_media {
+                    display: flex !important;
+                    justify-content: center !important;
+                }
+                .o_footer_copyright,
+                .o_footer_copyright_name {
+                    text-align: center !important;
+                    display: flex !important;
+                    justify-content: center !important;
+                    width: 100% !important;
+                }
+            </style>
+        </xpath>
+    </template>
+</odoo>

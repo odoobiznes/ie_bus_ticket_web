@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_payment_confirmation" name="Payment Confirmation Report">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <div class="page">
+                    <div class="oe_structure"/>
+                    <div class="row">
+                        <div class="col-12">
+                            <h1>Potvrzení o platbě</h1>
+                            <h2>Jízdenka: <t t-esc="doc.name"/></h2>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <td><strong>Číslo jízdenky:</strong></td>
+                                    <td><t t-esc="doc.name"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Cestující:</strong></td>
+                                    <td><t t-esc="doc.passenger_name"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Linka:</strong></td>
+                                    <td><t t-esc="doc.route_display or 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Datum jízdy:</strong></td>
+                                    <td><t t-esc="doc.trip_date.strftime('%d.%m.%Y') if doc.trip_date else 'N/A'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td><t t-esc="dict(doc._fields['status'].selection)[doc.status]"/></td>
+                                </tr>
+                            </table>
+                            <t t-if="payment_logs">
+                                <h3>Údaje o platbě:</h3>
+                                <t t-foreach="payment_logs.filtered(lambda l: l.reservation_id.id == doc.id)" t-as="log">
+                                    <table class="table table-bordered" style="margin-top: 10px;">
+                                        <tr>
+                                            <td><strong>Reference:</strong></td>
+                                            <td><t t-esc="log.name"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Invoice ID:</strong></td>
+                                            <td><t t-esc="log.invoice_id or 'N/A'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Status:</strong></td>
+                                            <td><t t-esc="dict(log._fields['status'].selection)[log.status]"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Částka:</strong></td>
+                                            <td><t t-esc="log.amount"/> <t t-esc="log.currency or 'UAH'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Datum:</strong></td>
+                                            <td><t t-esc="log.modified_date.strftime('%d.%m.%Y %H:%M') if log.modified_date else 'N/A'"/></td>
+                                        </tr>
+                                    </table>
+                                </t>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

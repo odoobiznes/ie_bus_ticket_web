@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Add Bus Booking to Website Menu -->
+        <record id="menu_bus_booking" model="website.menu">
+            <field name="name">🚌 Symchera BUS</field>
+            <field name="url">/bus-booking</field>
+            <field name="parent_id" ref="website.main_menu"/>
+            <field name="sequence">10</field>
+        </record>
+    </data>
+</odoo>

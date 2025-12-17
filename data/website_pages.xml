@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="website_page_bus_booking" model="website.page">
+        <field name="name">Modern Bus Booking</field>
+        <field name="url">/bus-booking</field>
+        <field name="view_id" ref="bus_booking_search_template"/>
+        
+        <field name="is_published" eval="True"/>
+    </record>
+</odoo>

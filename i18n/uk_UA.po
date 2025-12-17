@@ -1,0 +1,486 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * ie_bus_ticket_web
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-22 00:00:00\n"
+"PO-Revision-Date: 2025-09-22 00:00:00\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: uk_UA\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#. module: ie_bus_ticket_web
+#: model:ir.model.fields,field_description:ie_bus_ticket_web.field_modern_bus_reservation__name
+msgid "Reservation Number"
+msgstr "Номер бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Search Bus"
+msgstr "Пошук автобуса"
+
+#. module: ie_bus_ticket_web
+msgid "From"
+msgstr "Звідки"
+
+#. module: ie_bus_ticket_web
+msgid "To"
+msgstr "Куди"
+
+#. module: ie_bus_ticket_web
+msgid "Date"
+msgstr "Дата"
+
+#. module: ie_bus_ticket_web
+msgid "Search"
+msgstr "Пошук"
+
+#. module: ie_bus_ticket_web
+msgid "Hledat"
+msgstr "Пошук"
+
+#. module: ie_bus_ticket_web
+msgid "Odkud"
+msgstr "Звідки"
+
+#. module: ie_bus_ticket_web
+msgid "Kam"
+msgstr "Куди"
+
+#. module: ie_bus_ticket_web
+msgid "Datum"
+msgstr "Дата"
+
+#. module: ie_bus_ticket_web
+msgid "Search Results"
+msgstr "Результати пошуку"
+
+#. module: ie_bus_ticket_web
+msgid "Výsledky vyhledávání"
+msgstr "Результати пошуку"
+
+#. module: ie_bus_ticket_web
+msgid "Available Routes"
+msgstr "Доступні маршрути"
+
+#. module: ie_bus_ticket_web
+msgid "Select"
+msgstr "Вибрати"
+
+#. module: ie_bus_ticket_web
+msgid "Vybrat"
+msgstr "Вибрати"
+
+#. module: ie_bus_ticket_web
+msgid "Price"
+msgstr "Ціна"
+
+#. module: ie_bus_ticket_web
+msgid "Cena"
+msgstr "Ціна"
+
+#. module: ie_bus_ticket_web
+msgid "UAH"
+msgstr "грн"
+
+#. module: ie_bus_ticket_web
+msgid "per seat"
+msgstr "за місце"
+
+#. module: ie_bus_ticket_web
+msgid "za sedadlo"
+msgstr "за місце"
+
+#. module: ie_bus_ticket_web
+msgid "Seat Selection"
+msgstr "Вибір місця"
+
+#. module: ie_bus_ticket_web
+msgid "Výběr sedadel"
+msgstr "Вибір місць"
+
+#. module: ie_bus_ticket_web
+msgid "Select Your Seats"
+msgstr "Виберіть ваші місця"
+
+#. module: ie_bus_ticket_web
+msgid "Vyberte svá sedadla"
+msgstr "Виберіть ваші місця"
+
+#. module: ie_bus_ticket_web
+msgid "Selected Seats"
+msgstr "Вибрані місця"
+
+#. module: ie_bus_ticket_web
+msgid "Vybraná sedadla"
+msgstr "Вибрані місця"
+
+#. module: ie_bus_ticket_web
+msgid "Number of seats"
+msgstr "Кількість місць"
+
+#. module: ie_bus_ticket_web
+msgid "Počet sedadel"
+msgstr "Кількість місць"
+
+#. module: ie_bus_ticket_web
+msgid "Total Price"
+msgstr "Загальна ціна"
+
+#. module: ie_bus_ticket_web
+msgid "Celková cena"
+msgstr "Загальна ціна"
+
+#. module: ie_bus_ticket_web
+msgid "Passenger Details"
+msgstr "Дані пасажира"
+
+#. module: ie_bus_ticket_web
+msgid "Údaje o cestujícím"
+msgstr "Дані пасажира"
+
+#. module: ie_bus_ticket_web
+msgid "Full Name"
+msgstr "Повне ім'я"
+
+#. module: ie_bus_ticket_web
+msgid "Jméno a příjmení"
+msgstr "Повне ім'я"
+
+#. module: ie_bus_ticket_web
+msgid "Email"
+msgstr "Email"
+
+#. module: ie_bus_ticket_web
+msgid "Phone"
+msgstr "Телефон"
+
+#. module: ie_bus_ticket_web
+msgid "Telefon"
+msgstr "Телефон"
+
+#. module: ie_bus_ticket_web
+msgid "Continue to Payment"
+msgstr "Перейти до оплати"
+
+#. module: ie_bus_ticket_web
+msgid "Pokračovat k platbě"
+msgstr "Перейти до оплати"
+
+#. module: ie_bus_ticket_web
+msgid "Back"
+msgstr "Назад"
+
+#. module: ie_bus_ticket_web
+msgid "Zpět"
+msgstr "Назад"
+
+#. module: ie_bus_ticket_web
+msgid "Reservation Confirmation"
+msgstr "Підтвердження бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Potvrzení rezervace"
+msgstr "Підтвердження бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "UNPAID"
+msgstr "НЕОПЛАЧЕНО"
+
+#. module: ie_bus_ticket_web
+msgid "NEZAPLACENÁ"
+msgstr "НЕОПЛАЧЕНО"
+
+#. module: ie_bus_ticket_web
+msgid "Reservation Details"
+msgstr "Деталі бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Detaily rezervace"
+msgstr "Деталі бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Reservation Number"
+msgstr "Номер бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Číslo rezervace"
+msgstr "Номер бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Route"
+msgstr "Маршрут"
+
+#. module: ie_bus_ticket_web
+msgid "Trasa"
+msgstr "Маршрут"
+
+#. module: ie_bus_ticket_web
+msgid "Seats"
+msgstr "Місця"
+
+#. module: ie_bus_ticket_web
+msgid "Sedadla"
+msgstr "Місця"
+
+#. module: ie_bus_ticket_web
+msgid "Important Notice"
+msgstr "Важливе повідомлення"
+
+#. module: ie_bus_ticket_web
+msgid "Důležité upozornění"
+msgstr "Важливе повідомлення"
+
+#. module: ie_bus_ticket_web
+msgid "Contact the dispatcher at least 3 hours before the bus departure from the stop"
+msgstr "Зв'яжіться з диспетчером не пізніше ніж за 3 години до відправлення автобуса з зупинки"
+
+#. module: ie_bus_ticket_web
+msgid "Spojte se s dispečerem nejpozději 3 hodiny před odjezdem autobusu ze zastávky"
+msgstr "Зв'яжіться з диспетчером не пізніше ніж за 3 години до відправлення автобуса з зупинки"
+
+#. module: ie_bus_ticket_web
+msgid "or the reservation will be automatically cancelled"
+msgstr "інакше бронювання буде автоматично скасовано"
+
+#. module: ie_bus_ticket_web
+msgid "jinak bude rezervace automaticky zrušena"
+msgstr "інакше бронювання буде автоматично скасовано"
+
+#. module: ie_bus_ticket_web
+msgid "Dispatcher Contact"
+msgstr "Контакт диспетчера"
+
+#. module: ie_bus_ticket_web
+msgid "Kontakt na dispečera"
+msgstr "Контакт диспетчера"
+
+#. module: ie_bus_ticket_web
+msgid "Reservation expires"
+msgstr "Бронювання закінчується"
+
+#. module: ie_bus_ticket_web
+msgid "Rezervace vyprší"
+msgstr "Бронювання закінчується"
+
+#. module: ie_bus_ticket_web
+msgid "hours before departure"
+msgstr "години до відправлення"
+
+#. module: ie_bus_ticket_web
+msgid "hodiny před odjezdem"
+msgstr "години до відправлення"
+
+#. module: ie_bus_ticket_web
+msgid "Reservation Status"
+msgstr "Статус бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Stav rezervace"
+msgstr "Статус бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "To complete the ticket purchase, please make the payment"
+msgstr "Для завершення покупки квитка, будь ласка, здійсніть оплату"
+
+#. module: ie_bus_ticket_web
+msgid "Pro dokončení nákupu jízdenek proveďte platbu"
+msgstr "Для завершення покупки квитка, будь ласка, здійсніть оплату"
+
+#. module: ie_bus_ticket_web
+msgid "Pay Online"
+msgstr "Оплатити онлайн"
+
+#. module: ie_bus_ticket_web
+msgid "Zaplatit online"
+msgstr "Оплатити онлайн"
+
+#. module: ie_bus_ticket_web
+msgid "Payment Successful"
+msgstr "Оплата успішна"
+
+#. module: ie_bus_ticket_web
+msgid "Platba byla úspěšná"
+msgstr "Оплата успішна"
+
+#. module: ie_bus_ticket_web
+msgid "Your reservation has been successfully paid"
+msgstr "Ваше бронювання успішно оплачено"
+
+#. module: ie_bus_ticket_web
+msgid "Vaše rezervace byla úspěšně zaplacena"
+msgstr "Ваше бронювання успішно оплачено"
+
+#. module: ie_bus_ticket_web
+msgid "Thank you for your purchase"
+msgstr "Дякуємо за покупку"
+
+#. module: ie_bus_ticket_web
+msgid "Děkujeme za Váš nákup"
+msgstr "Дякуємо за покупку"
+
+#. module: ie_bus_ticket_web
+msgid "Dear"
+msgstr "Шановний/а"
+
+#. module: ie_bus_ticket_web
+msgid "Vážený/á"
+msgstr "Шановний/а"
+
+#. module: ie_bus_ticket_web
+msgid "Thank you for your reservation. Here are your trip details:"
+msgstr "Дякуємо за ваше бронювання. Ось деталі вашої поїздки:"
+
+#. module: ie_bus_ticket_web
+msgid "děkujeme za Vaši rezervaci. Zde jsou detaily Vaší cesty:"
+msgstr "Дякуємо за ваше бронювання. Ось деталі вашої поїздки:"
+
+#. module: ie_bus_ticket_web
+msgid "No routes found for selected criteria"
+msgstr "Маршрути не знайдено за вибраними критеріями"
+
+#. module: ie_bus_ticket_web
+msgid "Nebyly nalezeny žádné spoje pro vybraná kritéria"
+msgstr "Маршрути не знайдено за вибраними критеріями"
+
+#. module: ie_bus_ticket_web
+msgid "Please select a different date or route"
+msgstr "Будь ласка, виберіть іншу дату або маршрут"
+
+#. module: ie_bus_ticket_web
+msgid "Zkuste prosím jiné datum nebo trasu"
+msgstr "Будь ласка, виберіть іншу дату або маршрут"
+
+#. module: ie_bus_ticket_web
+msgid "Available"
+msgstr "Вільно"
+
+#. module: ie_bus_ticket_web
+msgid "Volné"
+msgstr "Вільно"
+
+#. module: ie_bus_ticket_web
+msgid "Booked"
+msgstr "Заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Obsazené"
+msgstr "Заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Selected"
+msgstr "Вибрано"
+
+#. module: ie_bus_ticket_web
+msgid "Vybrané"
+msgstr "Вибрано"
+
+#. module: ie_bus_ticket_web
+msgid "Please select at least one seat"
+msgstr "Будь ласка, виберіть хоча б одне місце"
+
+#. module: ie_bus_ticket_web
+msgid "Vyberte prosím alespoň jedno sedadlo"
+msgstr "Будь ласка, виберіть хоча б одне місце"
+
+#. module: ie_bus_ticket_web
+msgid "Please fill in all required fields"
+msgstr "Будь ласка, заповніть всі обов'язкові поля"
+
+#. module: ie_bus_ticket_web
+msgid "Vyplňte prosím všechna povinná pole"
+msgstr "Будь ласка, заповніть всі обов'язкові поля"
+
+#. module: ie_bus_ticket_web
+msgid "Seats were successfully reserved"
+msgstr "Місця успішно заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Sedadla byla úspěšně rezervována"
+msgstr "Місця успішно заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Error during reservation creation"
+msgstr "Помилка при створенні бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Chyba při vytváření rezervace"
+msgstr "Помилка при створенні бронювання"
+
+#. module: ie_bus_ticket_web
+msgid "Departure"
+msgstr "Відправлення"
+
+#. module: ie_bus_ticket_web
+msgid "Odjezd"
+msgstr "Відправлення"
+
+#. module: ie_bus_ticket_web
+msgid "Arrival"
+msgstr "Прибуття"
+
+#. module: ie_bus_ticket_web
+msgid "Příjezd"
+msgstr "Прибуття"
+
+#. module: ie_bus_ticket_web
+msgid "Duration"
+msgstr "Тривалість"
+
+#. module: ie_bus_ticket_web
+msgid "Doba jízdy"
+msgstr "Тривалість"
+
+#. module: ie_bus_ticket_web
+msgid "hours"
+msgstr "годин"
+
+#. module: ie_bus_ticket_web
+msgid "hodin"
+msgstr "годин"
+
+#. module: ie_bus_ticket_web
+msgid "Bus Tickets"
+msgstr "Автобусні квитки"
+
+#. module: ie_bus_ticket_web
+msgid "Jízdenky"
+msgstr "Автобусні квитки"
+
+#. module: ie_bus_ticket_web
+msgid "Reserved"
+msgstr "Заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Rezervováno"
+msgstr "Заброньовано"
+
+#. module: ie_bus_ticket_web
+msgid "Paid"
+msgstr "Оплачено"
+
+#. module: ie_bus_ticket_web
+msgid "Zaplaceno"
+msgstr "Оплачено"
+
+#. module: ie_bus_ticket_web
+msgid "Cancelled"
+msgstr "Скасовано"
+
+#. module: ie_bus_ticket_web
+msgid "Zrušeno"
+msgstr "Скасовано"
+
+#. module: ie_bus_ticket_web
+msgid "Expired"
+msgstr "Прострочено"
+
+#. module: ie_bus_ticket_web
+msgid "Vypršelo"
+msgstr "Прострочено"

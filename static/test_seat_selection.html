@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Seat Selection</title>
+    <style>
+        .bus-layout {
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .seat-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .seat {
+            width: 50px;
+            height: 50px;
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .seat.selected {
+            background: #667eea;
+            border-color: #5a67d8;
+            color: white;
+        }
+        .seat.booked {
+            background: #dc3545;
+            border-color: #c82333;
+            color: white;
+            cursor: not-allowed;
+        }
+        .seat.aisle {
+            visibility: hidden;
+        }
+        #info {
+            margin: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Seat Selection</h1>
+    
+    <div id="info">
+        <p>Selected Seats: <span id="selectedList">None</span></p>
+        <p>Total Count: <span id="seatCount">0</span></p>
+        <button onclick="testSelection()">Test Selection</button>
+    </div>
+    
+    <div class="bus-layout" id="busLayout">
+        <!-- Test seats - same structure as in Odoo template -->
+        <div class="seat-row">
+            <div id="seat_1_1" data-seat-id="1_1" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">1A</div>
+            <div id="seat_1_2" data-seat-id="1_2" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">1B</div>
+            <div class="seat aisle"></div>
+            <div id="seat_1_3" data-seat-id="1_3" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">1C</div>
+            <div id="seat_1_4" data-seat-id="1_4" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">1D</div>
+        </div>
+        <div class="seat-row">
+            <div id="seat_2_1" data-seat-id="2_1" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">2A</div>
+            <div id="seat_2_2" data-seat-id="2_2" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">2B</div>
+            <div class="seat aisle"></div>
+            <div id="seat_2_3" data-seat-id="2_3" class="seat booked">2C</div>
+            <div id="seat_2_4" data-seat-id="2_4" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">2D</div>
+        </div>
+        <div class="seat-row">
+            <div id="seat_3_1" data-seat-id="3_1" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">3A</div>
+            <div id="seat_3_2" data-seat-id="3_2" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">3B</div>
+            <div class="seat aisle"></div>
+            <div id="seat_3_3" data-seat-id="3_3" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">3C</div>
+            <div id="seat_3_4" data-seat-id="3_4" class="seat available" onclick="window.toggleSeat(this.dataset.seatId)">3D</div>
+        </div>
+    </div>
+    
+    <script type="text/javascript">
+        // Global variables
+        window.selectedSeats = [];
+        
+        // Define toggleSeat function
+        window.toggleSeat = function(seatId) {
+            console.log('toggleSeat called with:', seatId);
+            
+            var seat = document.getElementById('seat_' + seatId);
+            if (!seat) {
+                console.error('Seat not found:', seatId);
+                alert('Seat not found: ' + seatId);
+                return;
+            }
+            
+            // Check if seat is booked
+            if (seat.classList.contains('booked')) {
+                console.log('Seat is booked, cannot select');
+                alert('This seat is already booked');
+                return;
+            }
+            
+            // Toggle selection
+            if (seat.classList.contains('selected')) {
+                // Deselect
+                seat.classList.remove('selected');
+                seat.classList.add('available');
+                seat.style.background = '#d4edda';
+                seat.style.borderColor = '#c3e6cb';
+                seat.style.color = 'black';
+                
+                var index = window.selectedSeats.indexOf(seatId);
+                if (index > -1) {
+                    window.selectedSeats.splice(index, 1);
+                }
+                console.log('Seat deselected:', seatId);
+            } else {
+                // Select
+                seat.classList.remove('available');
+                seat.classList.add('selected');
+                seat.style.background = '#667eea';
+                seat.style.borderColor = '#5a67d8';
+                seat.style.color = 'white';
+                
+                if (!window.selectedSeats.includes(seatId)) {
+                    window.selectedSeats.push(seatId);
+                }
+                console.log('Seat selected:', seatId);
+            }
+            
+            updateDisplay();
+        };
+        
+        function updateDisplay() {
+            document.getElementById('selectedList').textContent = 
+                window.selectedSeats.length > 0 ? window.selectedSeats.join(', ') : 'None';
+            document.getElementById('seatCount').textContent = window.selectedSeats.length;
+        }
+        
+        function testSelection() {
+            // Test selecting multiple seats
+            window.toggleSeat('1_1');
+            window.toggleSeat('1_2');
+            window.toggleSeat('2_3'); // This should fail (booked)
+            alert('Test completed. Check console for details.');
+        }
+        
+        console.log('Test page loaded. toggleSeat function is:', typeof window.toggleSeat);
+    </script>
+</body>
+</html>
