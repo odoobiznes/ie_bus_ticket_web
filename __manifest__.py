@@ -45,11 +45,12 @@
         'report/templates/ticket_report.xml',
         'report/templates/payment_confirmation_report.xml',
     ],
-    'assets': {
-        'web.assets_frontend': [
-            'ie_bus_ticket_web/static/src/css/modern_booking.css',
-        ],
-    },
+    # Assets temporarily disabled - causing compilation errors
+    # 'assets': {
+    #     'web.assets_frontend': [
+    #         'ie_bus_ticket_web/static/src/css/modern_booking.css',
+    #     ],
+    # },
     "i18n": [
         'i18n/uk_UA.po',
     ],

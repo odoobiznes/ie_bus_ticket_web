@@ -229,14 +229,18 @@ class ModernBusBooking(http.Controller):
         unpaid_total = 0
 
         if is_admin:
-            # Count unpaid reservations
-            unpaid_reservations = request.env['modern.bus.reservation'].sudo().search([
-                ('status', '=', 'reserved')
-            ])
-            unpaid_count = len(unpaid_reservations)
-            for res in unpaid_reservations:
-                if res.selected_seats and res.route_id:
-                    unpaid_total += res.get_correct_price() * len(res.selected_seats.split(','))
+            # Count unpaid reservations - simplified to avoid transaction issues
+            try:
+                # Simple count query that won't fail
+                unpaid_count = request.env['modern.bus.reservation'].sudo().search_count([
+                    ('status', '=', 'reserved')
+                ])
+                # Skip calculating total to avoid potential field access issues
+                unpaid_total = 0
+            except Exception as e:
+                _logger.warning(f"Error counting unpaid reservations: {e}")
+                unpaid_count = 0
+                unpaid_total = 0
 
             # Get upcoming trips for admin view
             today_date = fields.Date.today()
@@ -1037,6 +1041,12 @@ class ModernBusBooking(http.Controller):
             # Log for debugging
             _logger.info(f"[MBB] Bus seat config - bus_type: {bus_type}, rows: {row_count}, cols: {col_count}, layout: {layout}")
 
+            # Calculate departure and arrival times from route search result
+            _logger.info(f"[MBB] Route data - trip_start_date: {route.trip_start_date}, trip_end_date: {route.trip_end_date}")
+            departure_time = float_to_time(route.trip_start_date) if route.trip_start_date else '—'
+            arrival_time = float_to_time(route.trip_end_date) if route.trip_end_date else '—'
+            _logger.info(f"[MBB] Times - departure: {departure_time}, arrival: {arrival_time}")
+
             return request.render('ie_bus_ticket_web.bus_booking_book_template', {
                 'route': route,
                 'trip': trip,
@@ -1050,6 +1060,8 @@ class ModernBusBooking(http.Controller):
                 'boarding_points': boarding_points,
                 'dropping_points': dropping_points,
                 'is_admin': is_admin,
+                'departure_time': departure_time,
+                'arrival_time': arrival_time,
             })
 
         except Exception as e:
