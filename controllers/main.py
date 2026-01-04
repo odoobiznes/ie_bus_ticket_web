@@ -1260,7 +1260,13 @@ class ModernBusBooking(http.Controller):
 
             # Calculate correct price using Special Price
             correct_price = reservation.get_correct_price()
-            seat_count = len(reservation.selected_seats.split(','))
+            # Handle both selected_seats and seat_number (from dispatcher quick-sell)
+            if reservation.selected_seats:
+                seat_count = len(reservation.selected_seats.split(','))
+            elif reservation.seat_number:
+                seat_count = len(reservation.seat_number.split(','))
+            else:
+                seat_count = 1
             total_price = correct_price * seat_count
 
             return request.render('ie_bus_ticket_web.bus_booking_confirmation_template', {
@@ -1346,14 +1352,27 @@ class ModernBusBooking(http.Controller):
                             return request.redirect(f'/bus-booking/confirmation/{reservation_id}?error=too_late')
 
             # Calculate total amount using correct price from Special Price
-            seat_count = len(reservation.selected_seats.split(','))
+            # Handle both selected_seats and seat_number (from dispatcher quick-sell)
+            if reservation.selected_seats:
+                seat_count = len(reservation.selected_seats.split(','))
+            elif reservation.seat_number:
+                seat_count = len(reservation.seat_number.split(','))
+            else:
+                seat_count = 1
+            
             price_per_seat = reservation.get_correct_price()
             total_amount = price_per_seat * seat_count
             _logger.info(f"Creating sale order for {seat_count} seats × {price_per_seat} = {total_amount}")
 
             # Create or get sale order for this reservation
-            sale_order = self._get_or_create_sale_order(reservation, total_amount)
-            _logger.info(f"Sale order created/retrieved: {sale_order.id}")
+            try:
+                sale_order = self._get_or_create_sale_order(reservation, total_amount)
+                _logger.info(f"Sale order created/retrieved: {sale_order.id}")
+            except Exception as sale_error:
+                _logger.warning(f"Could not create sale order: {sale_error}, redirecting to confirmation page")
+                # If sale order creation fails (e.g. sale module not installed), 
+                # redirect to confirmation page where user can see reservation details
+                return request.redirect(f'/bus-booking/confirmation/{reservation_id}')
 
             # Store reservation ID in session for callback
             request.session['bus_reservation_id'] = reservation.id
@@ -1519,6 +1538,10 @@ class ModernBusBooking(http.Controller):
 
     def _get_or_create_sale_order(self, reservation, total_amount):
         """Get or create sale order for reservation"""
+        # Check if sale module is installed
+        if 'sale.order' not in request.env:
+            raise Exception("Sale module not installed - cannot create sale order")
+        
         # Check if sale order already exists for this reservation
         if reservation.sale_order_id:
             return reservation.sale_order_id
@@ -1578,7 +1601,13 @@ class ModernBusBooking(http.Controller):
 
         # Add order line with correct price from reservation
         # IMPORTANT: Use get_correct_price() which takes boarding/dropping points into account
-        seat_count = len(reservation.selected_seats.split(','))
+        # Handle both selected_seats and seat_number (from dispatcher quick-sell)
+        if reservation.selected_seats:
+            seat_count = len(reservation.selected_seats.split(','))
+        elif reservation.seat_number:
+            seat_count = len(reservation.seat_number.split(','))
+        else:
+            seat_count = 1
         price_per_seat = float(reservation.get_correct_price())  # Get price from Special Price table
 
         _logger.info(f"[MBB] Creating order line: {seat_count} seats × {price_per_seat} = {seat_count * price_per_seat}")
@@ -1657,7 +1686,13 @@ class ModernBusBooking(http.Controller):
 
             # Calculate correct price
             correct_price = reservation.get_correct_price()
-            seat_count = len(reservation.selected_seats.split(','))
+            # Handle both selected_seats and seat_number (from dispatcher quick-sell)
+            if reservation.selected_seats:
+                seat_count = len(reservation.selected_seats.split(','))
+            elif reservation.seat_number:
+                seat_count = len(reservation.seat_number.split(','))
+            else:
+                seat_count = 1
             total_price = correct_price * seat_count
 
             return request.render('ie_bus_ticket_web.bus_booking_payment_success_template', {
@@ -1672,70 +1707,119 @@ class ModernBusBooking(http.Controller):
             _logger.error(f"Error in payment_success: {e}")
             return request.redirect('/bus-booking')
 
-    def _send_reservation_email(self, reservation, hours_until_expiry, expiry_time):
-        """Send reservation confirmation email"""
+    def _send_reservation_email(self, reservation, hours_until_expiry=None, expiry_time=None):
+        """Send reservation confirmation email with boarding/dropping points and times"""
         try:
-            # Get boarding point name
-            boarding_point = reservation.route_id.bording_from.name if reservation.route_id.bording_from else ''
+            # Get boarding/dropping info with times
+            boarding_name = reservation.boarding_point.name if reservation.boarding_point else (reservation.route_id.bording_from.name if reservation.route_id.bording_from else '-')
+            boarding_address = ''
+            boarding_time = ''
+            dropping_name = reservation.dropping_point.name if reservation.dropping_point else (reservation.route_id.to.name if reservation.route_id.to else '-')
+            dropping_address = ''
+            dropping_time = ''
+
+            if reservation.boarding_point and reservation.boarding_point.point_ids:
+                boarding_address = ', '.join(reservation.boarding_point.point_ids.mapped('name'))
+            if reservation.dropping_point and reservation.dropping_point.point_ids:
+                dropping_address = ', '.join(reservation.dropping_point.point_ids.mapped('name'))
+
+            # Get times from route lines
+            if reservation.route_id and hasattr(reservation.route_id, 'route') and reservation.route_id.route:
+                for line in reservation.route_id.route.route_line_ids:
+                    if reservation.boarding_point and line.bording_from.id == reservation.boarding_point.id:
+                        hours = int(line.start_times)
+                        minutes = int((line.start_times - hours) * 60)
+                        boarding_time = f"{hours:02d}:{minutes:02d}"
+                    if reservation.dropping_point and line.to.id == reservation.dropping_point.id:
+                        hours = int(line.end_times)
+                        minutes = int((line.end_times - hours) * 60)
+                        dropping_time = f"{hours:02d}:{minutes:02d}"
+
+            # Format boarding/dropping HTML
+            boarding_info = boarding_name
+            if boarding_time:
+                boarding_info += f" ({boarding_time})"
+            if boarding_address:
+                boarding_info += f"<br><small style='color:#666;'>{boarding_address}</small>"
+
+            dropping_info = dropping_name
+            if dropping_time:
+                dropping_info += f" ({dropping_time})"
+            if dropping_address:
+                dropping_info += f"<br><small style='color:#666;'>{dropping_address}</small>"
 
             # Calculate correct price
             correct_price = reservation.get_correct_price()
-            seat_count = len(reservation.selected_seats.split(','))
+            # Handle both selected_seats and seat_number (from dispatcher quick-sell)
+            if reservation.selected_seats:
+                seat_count = len(reservation.selected_seats.split(','))
+            elif reservation.seat_number:
+                seat_count = len(reservation.seat_number.split(','))
+            else:
+                seat_count = 1
             total_price = correct_price * seat_count
+            currency = reservation.currency_id.name if reservation.currency_id else 'CZK'
+
+            # Get trip date
+            trip_date = reservation.route_id.trip_date.strftime('%d.%m.%Y') if reservation.route_id and reservation.route_id.trip_date else '-'
+
+            # Expiry info
+            expiry_html = ''
+            if expiry_time:
+                expiry_html = f'<p style="color: #856404; margin: 10px 0;"><strong>Rezervace vyprší:</strong> {expiry_time}</p>'
 
             mail_values = {
-                'subject': f'Potvrzení rezervace {reservation.name} - NEZAPLACENÁ',
+                'subject': f'Potvrzení rezervace {reservation.name} - NEZAPLACENÁ - SymcheraBUS',
                 'email_to': reservation.passenger_email,
                 'email_from': 'rezervace@symcherabus.eu',
                 'body_html': f'''
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: #667eea;">Potvrzení rezervace <span style="color: #dc3545;">NEZAPLACENÁ</span></h2>
-                        <p>Vážený/á {reservation.passenger_name},</p>
-                        <p>děkujeme za Vaši rezervaci. Zde jsou detaily Vaší cesty:</p>
-
-                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                            <h3 style="color: #333; margin-top: 0;">Detaily rezervace:</h3>
-                            <ul style="list-style: none; padding: 0;">
-                                <li style="padding: 5px 0;"><strong>Číslo rezervace:</strong> {reservation.name}</li>
-                                <li style="padding: 5px 0;"><strong>Trasa:</strong> {reservation.route_id.bording_from.name} → {reservation.route_id.to.name}</li>
-                                <li style="padding: 5px 0;"><strong>Datum:</strong> {reservation.route_id.trip_date}</li>
-                                <li style="padding: 5px 0;"><strong>Sedadla:</strong> {reservation.selected_seats}</li>
-                                <li style="padding: 5px 0;"><strong>Celková cena:</strong> {total_price} UAH</li>
-                            </ul>
+                        <div style="background: linear-gradient(135deg, #ff8906, #ffc107); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="color: white; margin: 0;">⏳ Rezervace vytvořena</h1>
                         </div>
 
-                        <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;">
-                            <h4 style="color: #856404; margin-top: 0;">⚠️ Důležité upozornění</h4>
-                            <p style="color: #856404; margin: 10px 0;">
-                                Spojte se s dispečerem nejpozději <strong>3 hodiny před odjezdem autobusu ze zastávky {boarding_point}</strong>, jinak bude rezervace automaticky zrušena.
-                            </p>
-                            <p style="color: #856404; margin: 10px 0;">
-                                <strong>Kontakt na dispečera:</strong><br/>
-                                📞 +380 739 065 165<br/>
-                                📞 +420 447 617 002<br/>
-                                📞 +380 673 124 850<br/>
-                                ✉️ symchera@email.cz
-                            </p>
-                            <p style="color: #856404; margin: 10px 0;">
-                                <strong>Rezervace vyprší:</strong> {expiry_time}
-                            </p>
-                        </div>
+                        <div style="background: #f8f9fa; padding: 20px;">
+                            <h2 style="color: #ff8906; margin-top: 0;">🚌 SymcheraBUS</h2>
+                            <p>Vážený/á <strong>{reservation.passenger_name}</strong>,</p>
+                            <p>děkujeme za Vaši rezervaci. Zde jsou detaily Vaší cesty:</p>
 
-                        <div style="background: #d1ecf1; padding: 15px; border-left: 4px solid #17a2b8; margin: 20px 0;">
-                            <h4 style="color: #0c5460; margin-top: 0;">ℹ️ Stav rezervace: NEZAPLACENÁ</h4>
-                            <p style="color: #0c5460;">Pro dokončení nákupu jízdenek proveďte platbu.</p>
-                            <p style="margin-top: 10px;">
+                            <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden;">
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0;"><strong>📋 Číslo rezervace:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0; font-weight: bold; color: #ff8906;">{reservation.name}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>👤 Jméno:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.passenger_name}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>📅 Datum:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{trip_date}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💺 Sedadlo:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.selected_seats or '-'}</td></tr>
+                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🚏 Nástup:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{boarding_info}</td></tr>
+                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🏁 Výstup:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{dropping_info}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💰 Cena:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; font-weight: bold;">{total_price} {currency}</td></tr>
+                            </table>
+
+                            <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0; border-radius: 4px;">
+                                <h4 style="color: #856404; margin-top: 0;">⚠️ REZERVACE - NEZAPLACENO</h4>
+                                <p style="color: #856404; margin: 10px 0;">
+                                    Spojte se s dispečerem nejpozději <strong>3 hodiny před odjezdem</strong>, jinak bude rezervace automaticky zrušena.
+                                </p>
+                                {expiry_html}
+                            </div>
+
+                            <div style="text-align: center; margin: 20px 0;">
                                 <a href="https://symcherabus.eu/bus-booking/pay?reservation_id={reservation.id}"
-                                   style="background: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                                   style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-size: 16px; font-weight: bold;">
                                    💳 Zaplatit online
                                 </a>
-                            </p>
+                            </div>
+
+                            <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0; border-radius: 4px;">
+                                <h4 style="color: #0d47a1; margin-top: 0;">📞 Kontakt na dispečera:</h4>
+                                <p style="color: #0d47a1; margin: 5px 0;">📞 +380 739 065 165</p>
+                                <p style="color: #0d47a1; margin: 5px 0;">📞 +420 447 617 002</p>
+                                <p style="color: #0d47a1; margin: 5px 0;">📞 +380 673 124 850</p>
+                                <p style="color: #0d47a1; margin: 5px 0;">✉️ symchera@email.cz</p>
+                            </div>
                         </div>
 
-                        <p style="color: #666; font-size: 12px; margin-top: 30px;">
-                            S pozdravem,<br/>
-                            Tým SymcheraBUS
-                        </p>
+                        <div style="background: #333; padding: 15px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="color: #999; font-size: 12px; margin: 0;">SymcheraBUS | symcherabus.eu | +380673124850</p>
+                        </div>
                     </div>
                 ''',
             }
