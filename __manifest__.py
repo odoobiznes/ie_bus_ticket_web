@@ -32,13 +32,16 @@
         'ie_bus_ticket_admin',
         'account',
         'sale_management',
+        'payment_monobank',  # Required for monobank.payment.log model
     ],
     "data": [
-        # 'security/ir.model.access.csv',  # Moved to ie_bus_ticket_admin
+        'security/ir.model.access.csv',
         # 'data/sequence.xml',  # Moved to ie_bus_ticket_admin
         'data/email_templates.xml',
+        'views/assets.xml',  # Font override for CORS fix
         'views/templates.xml',
         'views/jizdenky_views.xml',
+        'wizard/change_status_wizard_views.xml',
         'data/website_pages.xml',
         'data/menu.xml',
         'report/report_registration.xml',

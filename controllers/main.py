@@ -463,7 +463,7 @@ class ModernBusBooking(http.Controller):
 
     @http.route('/bus-booking/search-routes', type='http', auth='public', website=True, methods=['GET', 'POST'], csrf=False)
     def search_routes(self, **kw):
-        """Search for bus routes - end_point is optional (shows all routes from start_point)"""
+        """Search for bus routes - if nothing selected, show next 5 departures"""
         _logger.info(f"=== SEARCH ROUTES: method={request.httprequest.method}, params={kw}")
 
         if request.httprequest.method == 'POST':
@@ -473,10 +473,24 @@ class ModernBusBooking(http.Controller):
 
             _logger.info(f"=== SEARCH PARAMS: start={start_point}, end={end_point}, date={travel_trip_date}")
 
-            # Only start_point and travel_date are required
-            if not start_point or not travel_trip_date:
-                _logger.warning("=== MISSING REQUIRED PARAMS (start_point or date) - redirecting back")
-                return request.redirect('/bus-booking')
+            # If no start_point selected, show next 5 upcoming departures
+            if not start_point:
+                _logger.info("=== NO START POINT - showing upcoming departures")
+                routes = self._get_upcoming_departures(limit=5)
+                return request.render('ie_bus_ticket_web.bus_booking_results_template', {
+                    'routes': routes,
+                    'next_route': None,
+                    'search_params': {
+                        'start_point': '',
+                        'end_point': '',
+                        'travel_trip_date': travel_trip_date or get_prague_today().strftime('%Y-%m-%d'),
+                    },
+                    'show_all_directions': True,  # Flag to show "All directions" header
+                })
+
+            # If no date, use today
+            if not travel_trip_date:
+                travel_trip_date = get_prague_today().strftime('%Y-%m-%d')
 
             routes = self._search_routes(start_point, end_point, travel_trip_date)
             _logger.info(f"=== FOUND ROUTES: {len(routes)} results")
@@ -711,11 +725,12 @@ class ModernBusBooking(http.Controller):
                 _logger.info(f"[MBB] Skip {route.name} on {trip_date}: sales disabled in trip settings")
                 return None
 
-            # Upsert search result for that start->end
+            # Upsert search result for that start->end (must include route.id to avoid date mismatch!)
             search_result = request.env['ie.bus.search.result'].sudo().search([
                 ('trip_date', '=', trip_date),
                 ('bording_from', '=', start_point_int),
                 ('to', '=', end_point_int),
+                ('route', '=', route.id),  # Critical: match route to prevent wrong date
             ], limit=1)
 
             price_val = sp_line.price or 0.0
@@ -739,12 +754,22 @@ class ModernBusBooking(http.Controller):
                 _logger.info(f"[MBB] Created search result {search_result.id} for {route.name}")
             else:
                 update_vals = {}
+                # Update trip_date if it doesn't match (critical for correct date display)
+                if search_result.trip_date != trip_date:
+                    update_vals['trip_date'] = trip_date
                 if search_result.price != price_val:
                     update_vals['price'] = price_val
                 if trip and not search_result.trip_id:
                     update_vals['trip_id'] = trip.id
                 if route and not search_result.route:
                     update_vals['route'] = route.id
+                # Update times
+                trip_start_time = boarding_route_line.start_times
+                trip_end_time = end_time_float
+                if search_result.trip_start_date != trip_start_time:
+                    update_vals['trip_start_date'] = trip_start_time
+                if search_result.trip_end_date != trip_end_time:
+                    update_vals['trip_end_date'] = trip_end_time
                 if update_vals:
                     search_result.write(update_vals)
                     _logger.info(f"[MBB] Updated search result {search_result.id}: {update_vals}")
@@ -808,6 +833,7 @@ class ModernBusBooking(http.Controller):
                         end_point_name = request.env['ie.bus.point'].sudo().browse(end_point_int).name
 
                     return {
+                        'id': next_route.get('id'),  # search_result ID for navigation
                         'date': check_date.strftime('%d.%m.%Y'),
                         'date_iso': check_date_str,
                         'start_point': start_point_name,
@@ -816,7 +842,7 @@ class ModernBusBooking(http.Controller):
                         'end_time': next_route.get('end_time', ''),
                         'price': next_route.get('price', 0),
                         'available_seats': next_route.get('available_seats', 0),
-                        'route_id': next_route.get('id'),
+                        'route_id': next_route.get('route_id'),  # ie.route.management ID
                         'route_name': next_route.get('name', ''),
                     }
 
@@ -826,6 +852,162 @@ class ModernBusBooking(http.Controller):
         except Exception as e:
             _logger.error(f"[MBB] Error finding next route: {e}")
             return None
+
+    def _get_upcoming_departures(self, limit=5):
+        """Get next upcoming departures from all routes (when user doesn't select anything)
+        SIMPLIFIED VERSION - returns basic route info without creating search_results
+        """
+        _logger.warning(f"[MBB] _get_upcoming_departures called with limit={limit}")
+
+        now = get_prague_now()
+        today = get_prague_today()
+        results = []
+
+        # Get all routes
+        try:
+            routes = request.env['ie.route.management'].sudo().search([])
+            _logger.warning(f"[MBB] Found {len(routes)} routes in database")
+        except Exception as e:
+            _logger.error(f"[MBB] Error getting routes: {e}")
+            return results
+
+        for route in routes:
+            try:
+                _logger.warning(f"[MBB] Processing route {route.id}: {route.name}")
+
+                # Get route_line_ids
+                route_lines = route.route_line_ids if route.route_line_ids else []
+                _logger.warning(f"[MBB] Route {route.id} has {len(route_lines)} route_lines")
+
+                if not route_lines:
+                    continue
+
+                # Sort by start_times and get first
+                sorted_lines = sorted(route_lines, key=lambda l: l.start_times)
+                first_line = sorted_lines[0]
+                start_point = first_line.bording_from
+                start_time_float = first_line.start_times
+
+                _logger.warning(f"[MBB] First line start_point={start_point.name if start_point else 'None'}, time={start_time_float}")
+
+                if not start_point:
+                    continue
+
+                # Get end point from route
+                end_point = route.dropping_id
+                end_time_float = 18.0  # Default end time
+
+                # Check next 7 days for a valid departure
+                for day_offset in range(7):
+                    check_date = today + datetime.timedelta(days=day_offset)
+
+                    # Calculate departure datetime
+                    departure_hour = int(start_time_float)
+                    departure_minute = int((start_time_float - departure_hour) * 60)
+                    try:
+                        departure_datetime = datetime.datetime.combine(
+                            check_date,
+                            datetime.time(departure_hour, departure_minute),
+                            tzinfo=PRAGUE_TZ
+                        )
+                    except Exception as e:
+                        _logger.warning(f"[MBB] Error creating departure time: {e}")
+                        continue
+
+                    # Skip if already departed
+                    if departure_datetime < now + datetime.timedelta(minutes=5):
+                        continue
+
+                    # Get price
+                    price = first_line.price if hasattr(first_line, 'price') else 0
+
+                    # Format date
+                    days_ua = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
+                    day_name = days_ua[check_date.weekday()]
+                    display_date = f"{check_date.strftime('%d.%m.%y')} {day_name}"
+
+                    # Create or find search_result record (CRITICAL for correct navigation)
+                    end_point_id = end_point.id if end_point else None
+                    search_result = None
+                    if end_point_id:
+                        search_result = request.env['ie.bus.search.result'].sudo().search([
+                            ('trip_date', '=', check_date),
+                            ('bording_from', '=', start_point.id),
+                            ('to', '=', end_point_id),
+                            ('route', '=', route.id),
+                        ], limit=1)
+
+                        if not search_result:
+                            # Create trip first if needed
+                            trip = request.env['ie.bus.trip'].sudo().search([
+                                ('route', '=', route.id),
+                                ('trip_date', '=', check_date)
+                            ], limit=1)
+                            if not trip:
+                                try:
+                                    trip = request.env['ie.bus.trip'].sudo().create({
+                                        'route': route.id,
+                                        'trip_date': check_date,
+                                        'bus_id': route.fleet_id.id if route.fleet_id else False,
+                                    })
+                                except Exception as e:
+                                    _logger.warning(f"[MBB] Could not create trip: {e}")
+
+                            # Create search_result
+                            search_result = request.env['ie.bus.search.result'].sudo().create({
+                                'name': f"{route.name}_{check_date}",
+                                'trip_date': check_date,
+                                'trip_start_date': start_time_float,
+                                'trip_end_date': end_time_float,
+                                'price': price,
+                                'bording_from': start_point.id,
+                                'to': end_point_id,
+                                'bus_id': trip.bus_id.id if trip and trip.bus_id else False,
+                                'route': route.id,
+                                'trip_id': trip.id if trip else False,
+                            })
+                            _logger.info(f"[MBB] Created search_result {search_result.id} for upcoming departure")
+
+                    # Use search_result.id or skip if no end_point
+                    if not search_result:
+                        _logger.warning(f"[MBB] Skipping {route.name} - no end_point or search_result")
+                        continue
+
+                    result = {
+                        'id': search_result.id,  # CORRECT: Use search_result ID
+                        'name': route.name,
+                        'price': price,
+                        'start_point': start_point.name,
+                        'start_point_id': start_point.id,
+                        'end_point': end_point.name if end_point else route.name,
+                        'end_point_id': end_point_id,
+                        'start_time': float_to_time(start_time_float),
+                        'end_time': float_to_time(end_time_float),
+                        'date': display_date,
+                        'departure_datetime': departure_datetime,
+                        'available_seats': (trip.remaining_seats if trip else 50) or 50,
+                        'currency': 'UAH',
+                        'trip_id': trip.id if trip else None,
+                        'route_id': route.id,
+                    }
+                    results.append(result)
+                    _logger.warning(f"[MBB] Added result: {result['name']} on {result['date']} (search_result_id={search_result.id})")
+                    break  # Only one result per route
+
+            except Exception as e:
+                _logger.error(f"[MBB] Error processing route {route.id}: {e}")
+                continue
+
+        # Sort by departure time and return first N
+        results.sort(key=lambda x: x['departure_datetime'])
+
+        # Remove datetime object from results (not JSON serializable for template)
+        for r in results:
+            if 'departure_datetime' in r:
+                del r['departure_datetime']
+
+        _logger.warning(f"[MBB] Returning {len(results)} results")
+        return results[:limit]
 
     def _create_trips_for_date(self, trip_date):
         """Automaticky vytvoří trips pro dané datum z dostupných tras"""
@@ -955,6 +1137,13 @@ class ModernBusBooking(http.Controller):
             if not route.exists():
                 return request.redirect('/bus-booking/search-routes')
 
+            # CRITICAL: Validate trip_date is not in the past (allow today and future)
+            today = get_prague_today()
+            if route.trip_date and route.trip_date < today:
+                _logger.warning(f"[MBB] Outdated search result {route_id} with date {route.trip_date} - redirecting to search")
+                # Redirect to search with same parameters
+                return request.redirect(f'/bus-booking?from_point={route.bording_from.id}&to_point={route.to.id}')
+
             # Get bus info from trip or fallback to route.bus_id
             trip = route.trip_id
             bus = trip.bus_id if trip else (route.bus_id if hasattr(route, 'bus_id') else False)
@@ -1047,6 +1236,22 @@ class ModernBusBooking(http.Controller):
             arrival_time = float_to_time(route.trip_end_date) if route.trip_end_date else '—'
             _logger.info(f"[MBB] Times - departure: {departure_time}, arrival: {arrival_time}")
 
+            # Get logged-in user data for form pre-fill
+            user = request.env.user
+            user_data = {
+                'name': '',
+                'email': '',
+                'phone': '',
+            }
+            if user and not user._is_public():
+                # User is logged in - get their data
+                partner = user.partner_id
+                if partner:
+                    user_data['name'] = partner.name or ''
+                    user_data['email'] = partner.email or ''
+                    user_data['phone'] = partner.phone or partner.mobile or ''
+                _logger.info(f"[MBB] Pre-filling form for user {user.name}: {user_data}")
+
             return request.render('ie_bus_ticket_web.bus_booking_book_template', {
                 'route': route,
                 'trip': trip,
@@ -1062,11 +1267,111 @@ class ModernBusBooking(http.Controller):
                 'is_admin': is_admin,
                 'departure_time': departure_time,
                 'arrival_time': arrival_time,
+                'user_data': user_data,
             })
 
         except Exception as e:
             _logger.error(f"Error in book_ticket: {e}")
             return request.redirect('/bus-booking/search-routes')
+
+    # --- VERIFICATION API ENDPOINTS ---
+
+    @http.route('/bus-booking/api/send-verification', type='jsonrpc', auth='public', methods=['POST'], csrf=False)
+    def send_verification_code(self, **kw):
+        """Send verification code to email or phone"""
+        try:
+            contact = kw.get('contact', '').strip()
+            if not contact:
+                return {'success': False, 'error': 'Введіть контакт'}
+
+            # Generate 6-digit code
+            import random
+            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+            # Store code in session (expires in 10 minutes)
+            request.session['verification_code'] = code
+            request.session['verification_contact'] = contact
+            request.session['verification_time'] = datetime.datetime.now().isoformat()
+
+            is_email = '@' in contact
+
+            if is_email:
+                # Send email
+                try:
+                    mail_values = {
+                        'subject': f'SymcheraBUS - Код підтвердження: {code}',
+                        'body_html': f'''
+                            <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; text-align: center;">
+                                <h2 style="color: #004aad;">🔐 Код підтвердження</h2>
+                                <p style="font-size: 14px; color: #666;">Ваш код для підтвердження контакту:</p>
+                                <div style="background: #f0f0f0; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">{code}</span>
+                                </div>
+                                <p style="font-size: 12px; color: #999;">Код дійсний 10 хвилин</p>
+                            </div>
+                        ''',
+                        'email_to': contact,
+                        'email_from': 'tickets@mail.symcherabus.eu',
+                    }
+                    request.env['mail.mail'].sudo().create(mail_values).send()
+                    _logger.info(f"[MBB] Verification code sent to {contact}")
+                except Exception as e:
+                    _logger.error(f"[MBB] Error sending verification email: {e}")
+                    return {'success': False, 'error': 'Помилка надсилання email'}
+            else:
+                # For phone - just log (SMS integration could be added later)
+                _logger.info(f"[MBB] Verification code for phone {contact}: {code}")
+                # For now, we'll use the session-stored code
+
+            return {'success': True, 'message': 'Код надіслано'}
+
+        except Exception as e:
+            _logger.error(f"[MBB] Error in send_verification_code: {e}")
+            return {'success': False, 'error': str(e)}
+
+    @http.route('/bus-booking/api/verify-code', type='jsonrpc', auth='public', methods=['POST'], csrf=False)
+    def verify_code(self, **kw):
+        """Verify the code entered by user"""
+        try:
+            contact = kw.get('contact', '').strip()
+            code = kw.get('code', '').strip()
+
+            if not contact or not code:
+                return {'success': False, 'error': 'Введіть код'}
+
+            stored_code = request.session.get('verification_code')
+            stored_contact = request.session.get('verification_contact')
+            stored_time_str = request.session.get('verification_time')
+
+            if not stored_code or not stored_contact:
+                return {'success': False, 'error': 'Спочатку запросіть код'}
+
+            # Check if code is still valid (10 minutes)
+            if stored_time_str:
+                stored_time = datetime.datetime.fromisoformat(stored_time_str)
+                if (datetime.datetime.now() - stored_time).total_seconds() > 600:
+                    return {'success': False, 'error': 'Код закінчився. Запросіть новий.'}
+
+            if stored_contact != contact:
+                return {'success': False, 'error': 'Контакт не співпадає'}
+
+            if stored_code != code:
+                return {'success': False, 'error': 'Невірний код'}
+
+            # Code is valid - clear session
+            request.session.pop('verification_code', None)
+            request.session.pop('verification_contact', None)
+            request.session.pop('verification_time', None)
+
+            # Mark contact as verified in session
+            request.session['verified_contact'] = contact
+
+            _logger.info(f"[MBB] Contact verified: {contact}")
+            return {'success': True, 'message': 'Контакт підтверджено'}
+
+        except Exception as e:
+            _logger.error(f"[MBB] Error in verify_code: {e}")
+            return {'success': False, 'error': str(e)}
 
     @http.route('/bus-booking/reserve', type='jsonrpc', auth='public', methods=['POST'], csrf=False)
     def reserve_seats(self, **kw):
@@ -1211,6 +1516,15 @@ class ModernBusBooking(http.Controller):
                     seat_vals['bus_id'] = trip.id
                 request.env['bus.booked.seat'].sudo().create(seat_vals)
 
+            # Send reservation emails (async to not block response)
+            try:
+                reservation._send_reservation_email()
+                reservation._send_admin_notification_email()
+                _logger.info(f"Reservation emails sent for {reservation.name}")
+            except Exception as e:
+                _logger.error(f"Failed to send reservation emails: {e}")
+                # Don't fail the reservation if email fails
+
             return {
                 'success': True,
                 'reservation_id': reservation.id,
@@ -1235,8 +1549,40 @@ class ModernBusBooking(http.Controller):
             trip_date = reservation.route_id.trip_date
             trip_start_time = reservation.route_id.trip_start_date or 0
 
-            # Get boarding point and its time
-            boarding_point_name = reservation.route_id.bording_from.name if reservation.route_id.bording_from else ''
+            # Get boarding/dropping info with times and addresses
+            boarding_point = reservation.boarding_point if reservation.boarding_point else reservation.route_id.bording_from
+            dropping_point = reservation.dropping_point if reservation.dropping_point else reservation.route_id.to
+
+            boarding_point_name = boarding_point.name if boarding_point else ''
+            boarding_address = ''
+            boarding_time = ''
+            dropping_point_name = dropping_point.name if dropping_point else ''
+            dropping_address = ''
+            dropping_time = ''
+
+            # Get addresses from point_ids (sub-locations)
+            if boarding_point and boarding_point.point_ids:
+                boarding_address = ', '.join(boarding_point.point_ids.mapped('name'))
+            if dropping_point and dropping_point.point_ids:
+                dropping_address = ', '.join(dropping_point.point_ids.mapped('name'))
+
+            # Get times from route lines
+            if reservation.route_id and hasattr(reservation.route_id, 'route') and reservation.route_id.route:
+                for line in reservation.route_id.route.route_line_ids:
+                    if boarding_point and line.bording_from.id == boarding_point.id:
+                        hours = int(line.start_times)
+                        minutes = int((line.start_times - hours) * 60)
+                        boarding_time = f"{hours:02d}:{minutes:02d}"
+                    if dropping_point and line.to.id == dropping_point.id:
+                        hours = int(line.end_times)
+                        minutes = int((line.end_times - hours) * 60)
+                        dropping_time = f"{hours:02d}:{minutes:02d}"
+
+            # Fallback: use trip_start_date if no boarding_time found
+            if not boarding_time and trip_start_time:
+                hours = int(trip_start_time)
+                minutes = int((trip_start_time - hours) * 60)
+                boarding_time = f"{hours:02d}:{minutes:02d}"
 
             # Convert trip time to datetime (Prague timezone)
             hours = int(trip_start_time)
@@ -1258,7 +1604,7 @@ class ModernBusBooking(http.Controller):
             # Send confirmation email if not already sent
             self._send_reservation_email(reservation, hours_until_expiry, expiry_time)
 
-            # Calculate correct price using Special Price
+            # Calculate correct price using Special Price (always in UAH)
             correct_price = reservation.get_correct_price()
             # Handle both selected_seats and seat_number (from dispatcher quick-sell)
             if reservation.selected_seats:
@@ -1274,6 +1620,11 @@ class ModernBusBooking(http.Controller):
                 'hours_until_expiry': int(hours_until_expiry),
                 'expiry_time': expiry_time,
                 'boarding_point_name': boarding_point_name,
+                'boarding_address': boarding_address,
+                'boarding_time': boarding_time,
+                'dropping_point_name': dropping_point_name,
+                'dropping_address': dropping_address,
+                'dropping_time': dropping_time,
                 'correct_price': correct_price,
                 'total_price': total_price,
             })
@@ -1359,7 +1710,7 @@ class ModernBusBooking(http.Controller):
                 seat_count = len(reservation.seat_number.split(','))
             else:
                 seat_count = 1
-            
+
             price_per_seat = reservation.get_correct_price()
             total_amount = price_per_seat * seat_count
             _logger.info(f"Creating sale order for {seat_count} seats × {price_per_seat} = {total_amount}")
@@ -1370,7 +1721,7 @@ class ModernBusBooking(http.Controller):
                 _logger.info(f"Sale order created/retrieved: {sale_order.id}")
             except Exception as sale_error:
                 _logger.warning(f"Could not create sale order: {sale_error}, redirecting to confirmation page")
-                # If sale order creation fails (e.g. sale module not installed), 
+                # If sale order creation fails (e.g. sale module not installed),
                 # redirect to confirmation page where user can see reservation details
                 return request.redirect(f'/bus-booking/confirmation/{reservation_id}')
 
@@ -1541,7 +1892,7 @@ class ModernBusBooking(http.Controller):
         # Check if sale module is installed
         if 'sale.order' not in request.env:
             raise Exception("Sale module not installed - cannot create sale order")
-        
+
         # Check if sale order already exists for this reservation
         if reservation.sale_order_id:
             return reservation.sale_order_id
@@ -1708,7 +2059,7 @@ class ModernBusBooking(http.Controller):
             return request.redirect('/bus-booking')
 
     def _send_reservation_email(self, reservation, hours_until_expiry=None, expiry_time=None):
-        """Send reservation confirmation email with boarding/dropping points and times"""
+        """Send reservation confirmation email in Ukrainian with UAH pricing"""
         try:
             # Get boarding/dropping info with times
             boarding_name = reservation.boarding_point.name if reservation.boarding_point else (reservation.route_id.bording_from.name if reservation.route_id.bording_from else '-')
@@ -1735,6 +2086,12 @@ class ModernBusBooking(http.Controller):
                         minutes = int((line.end_times - hours) * 60)
                         dropping_time = f"{hours:02d}:{minutes:02d}"
 
+            # Fallback: use trip_start_date if no boarding_time found
+            if not boarding_time and reservation.route_id and reservation.route_id.trip_start_date:
+                hours = int(reservation.route_id.trip_start_date)
+                minutes = int((reservation.route_id.trip_start_date - hours) * 60)
+                boarding_time = f"{hours:02d}:{minutes:02d}"
+
             # Format boarding/dropping HTML
             boarding_info = boarding_name
             if boarding_time:
@@ -1748,7 +2105,7 @@ class ModernBusBooking(http.Controller):
             if dropping_address:
                 dropping_info += f"<br><small style='color:#666;'>{dropping_address}</small>"
 
-            # Calculate correct price
+            # Calculate correct price (always in UAH)
             correct_price = reservation.get_correct_price()
             # Handle both selected_seats and seat_number (from dispatcher quick-sell)
             if reservation.selected_seats:
@@ -1758,45 +2115,44 @@ class ModernBusBooking(http.Controller):
             else:
                 seat_count = 1
             total_price = correct_price * seat_count
-            currency = reservation.currency_id.name if reservation.currency_id else 'CZK'
 
             # Get trip date
             trip_date = reservation.route_id.trip_date.strftime('%d.%m.%Y') if reservation.route_id and reservation.route_id.trip_date else '-'
 
-            # Expiry info
+            # Expiry info in Ukrainian
             expiry_html = ''
             if expiry_time:
-                expiry_html = f'<p style="color: #856404; margin: 10px 0;"><strong>Rezervace vyprší:</strong> {expiry_time}</p>'
+                expiry_html = f'<p style="color: #856404; margin: 10px 0;"><strong>Бронювання закінчується:</strong> {expiry_time}</p>'
 
             mail_values = {
-                'subject': f'Potvrzení rezervace {reservation.name} - NEZAPLACENÁ - SymcheraBUS',
+                'subject': f'✅ Бронювання {reservation.name} - НЕОПЛАЧЕНО - SymcheraBUS',
                 'email_to': reservation.passenger_email,
                 'email_from': 'rezervace@symcherabus.eu',
                 'body_html': f'''
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <div style="background: linear-gradient(135deg, #ff8906, #ffc107); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                            <h1 style="color: white; margin: 0;">⏳ Rezervace vytvořena</h1>
+                            <h1 style="color: white; margin: 0;">⏳ Бронювання створено</h1>
                         </div>
 
                         <div style="background: #f8f9fa; padding: 20px;">
                             <h2 style="color: #ff8906; margin-top: 0;">🚌 SymcheraBUS</h2>
-                            <p>Vážený/á <strong>{reservation.passenger_name}</strong>,</p>
-                            <p>děkujeme za Vaši rezervaci. Zde jsou detaily Vaší cesty:</p>
+                            <p>Шановний/а <strong>{reservation.passenger_name}</strong>,</p>
+                            <p>Дякуємо за Ваше бронювання. Ось деталі Вашої поїздки:</p>
 
                             <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden;">
-                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0;"><strong>📋 Číslo rezervace:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0; font-weight: bold; color: #ff8906;">{reservation.name}</td></tr>
-                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>👤 Jméno:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.passenger_name}</td></tr>
-                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>📅 Datum:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{trip_date}</td></tr>
-                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💺 Sedadlo:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.selected_seats or '-'}</td></tr>
-                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🚏 Nástup:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{boarding_info}</td></tr>
-                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🏁 Výstup:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{dropping_info}</td></tr>
-                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💰 Cena:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; font-weight: bold;">{total_price} {currency}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0;"><strong>📋 Номер бронювання:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; background: #fff3e0; font-weight: bold; color: #ff8906;">{reservation.name}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>👤 Ім'я:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.passenger_name}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>📅 Дата:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{trip_date}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💺 Місце:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{reservation.selected_seats or reservation.seat_number or '-'}</td></tr>
+                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🚏 Посадка:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{boarding_info}</td></tr>
+                                <tr style="background:#e8f5e9;"><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>🏁 Висадка:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd;">{dropping_info}</td></tr>
+                                <tr><td style="padding: 12px; border-bottom: 1px solid #ddd;"><strong>💰 Ціна:</strong></td><td style="padding: 12px; border-bottom: 1px solid #ddd; font-weight: bold; color: #059669;">{total_price} UAH</td></tr>
                             </table>
 
                             <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0; border-radius: 4px;">
-                                <h4 style="color: #856404; margin-top: 0;">⚠️ REZERVACE - NEZAPLACENO</h4>
+                                <h4 style="color: #856404; margin-top: 0;">⚠️ БРОНЮВАННЯ - НЕОПЛАЧЕНО</h4>
                                 <p style="color: #856404; margin: 10px 0;">
-                                    Spojte se s dispečerem nejpozději <strong>3 hodiny před odjezdem</strong>, jinak bude rezervace automaticky zrušena.
+                                    Зв'яжіться з диспетчером не пізніше ніж <strong>за 3 години до відправлення</strong>, інакше бронювання буде автоматично скасовано.
                                 </p>
                                 {expiry_html}
                             </div>
@@ -1804,12 +2160,12 @@ class ModernBusBooking(http.Controller):
                             <div style="text-align: center; margin: 20px 0;">
                                 <a href="https://symcherabus.eu/bus-booking/pay?reservation_id={reservation.id}"
                                    style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-size: 16px; font-weight: bold;">
-                                   💳 Zaplatit online
+                                   💳 Оплатити онлайн
                                 </a>
                             </div>
 
                             <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0; border-radius: 4px;">
-                                <h4 style="color: #0d47a1; margin-top: 0;">📞 Kontakt na dispečera:</h4>
+                                <h4 style="color: #0d47a1; margin-top: 0;">📞 Контакт диспетчера:</h4>
                                 <p style="color: #0d47a1; margin: 5px 0;">📞 +380 739 065 165</p>
                                 <p style="color: #0d47a1; margin: 5px 0;">📞 +420 447 617 002</p>
                                 <p style="color: #0d47a1; margin: 5px 0;">📞 +380 673 124 850</p>

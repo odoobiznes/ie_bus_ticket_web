@@ -115,6 +115,9 @@
                     <button name="action_cancel" string="Zrušit" type="object"
                             class="btn-danger" icon="fa-times"
                             invisible="status in ('cancelled', 'expired')" />
+                    <button name="action_restore" string="♻️ Obnovit" type="object"
+                            class="btn-warning" icon="fa-undo"
+                            invisible="status != 'cancelled'" />
                     <button name="action_send_ticket" string="Znovu poslat jízdenku" type="object"
                             class="btn-primary" icon="fa-envelope"
                             invisible="status == 'cancelled'" />
@@ -124,15 +127,9 @@
                     <button name="action_download_qr" string="QR kód" type="object"
                             class="btn-info" icon="fa-qrcode"
                             invisible="status == 'cancelled'" />
-                    <button name="action_download_invoice" string="Faktura" type="object"
-                            class="btn-secondary" icon="fa-file-invoice"
-                            invisible="status in ('cancelled', 'reserved')" />
-                    <button name="action_download_payment_confirmation" string="Potvrzení o platbě" type="object"
-                            class="btn-secondary" icon="fa-receipt"
-                            invisible="status in ('cancelled', 'reserved')" />
-                    <button name="action_show_payment_details" string="Údaje o platbě" type="object"
-                            class="btn-info" icon="fa-credit-card"
-                            invisible="status in ('cancelled', 'reserved')" />
+                    <!-- Tlačítko pro změnu statusu -->
+                    <button name="action_open_change_status_wizard" string="📊 Změnit status" type="object"
+                            class="btn-secondary" icon="fa-exchange" />
                     <field name="status" widget="statusbar" statusbar_visible="reserved,paid,confirmed,expired,cancelled" />
                 </header>
                 <sheet>
@@ -149,6 +146,7 @@
                     <group>
                         <group string="Informace o cestě">
                             <field name="route_id" string="Linka" readonly="1"/>
+                            <field name="trip_date" string="Datum jízdy" readonly="1"/>
                             <field name="selected_seats" string="Místo" readonly="1"/>
                             <label for="boarding_point" string="Trasa"/>
                             <div class="o_row">
@@ -167,18 +165,85 @@
                             </div>
                         </group>
                     </group>
-                    <group>
-                        <group string="Objednávka">
-                            <field name="sale_order_id" string="Objednávka"/>
-                            <field name="reservation_date" string="Datum rezervace" readonly="1" widget="datetime"/>
-                            <button name="action_show_payment_details" string="Zobrazit údaje o platbě" type="object"
-                                    class="btn-link" icon="fa-credit-card"
-                                    invisible="status in ('cancelled', 'reserved')"/>
+
+                    <!-- PLATBA Section - rozšířené -->
+                    <group string="💳 PLATBA" col="2">
+                        <group>
+                            <field name="payment_method_detail" string="Způsob platby"/>
+                            <field name="payment_details_html" widget="html" nolabel="1" colspan="2"/>
                         </group>
-                        <group string="Fakturace" invisible="needs_invoice == False">
+                        <group>
+                            <div class="o_row" invisible="status not in ('reserved')">
+                                <button name="action_pay" string="✅ Online platba" type="object"
+                                        class="btn-success me-2" icon="fa-credit-card"/>
+                                <button name="action_receive_cash_quick" string="💵 Hotovost" type="object"
+                                        class="btn-warning" icon="fa-money"/>
+                            </div>
+                            <div class="o_row" invisible="status in ('reserved', 'cancelled')">
+                                <button name="action_view_monobank_logs" string="📋 MonoBank logy" type="object"
+                                        class="btn-link" icon="fa-list"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Hotovostní platba - detaily -->
+                    <group string="💵 HOTOVOSTNÍ PLATBA" col="2"
+                           invisible="payment_method_detail != 'cash' and not cash_received_at">
+                        <group>
+                            <field name="cash_received_at" string="Datum přijetí"/>
+                            <field name="cash_received_by" string="Přijal"/>
+                        </group>
+                        <group>
+                            <field name="cash_received_amount" string="Částka"/>
+                            <field name="cash_note" string="Poznámka"/>
+                        </group>
+                    </group>
+
+                    <!-- Bankovní platba - detaily -->
+                    <group string="🏦 BANKOVNÍ PLATBA (MonoBank)" col="2"
+                           invisible="payment_method_detail != 'online' and not bank_payment_date">
+                        <group>
+                            <field name="bank_payment_date" string="Datum platby"/>
+                            <field name="bank_payment_amount" string="Částka"/>
+                            <field name="bank_payment_status" string="Stav"/>
+                        </group>
+                        <group>
+                            <field name="bank_payment_reference" string="Reference"/>
+                            <field name="bank_invoice_id" string="MonoBank Invoice ID"/>
+                        </group>
+                    </group>
+
+                    <!-- ÚČETNICTVÍ Section - rozšířené -->
+                    <group string="📊 ÚČETNICTVÍ" col="2">
+                        <group>
+                            <field name="sale_order_id" string="Objednávka" readonly="1"/>
+                            <field name="invoice_id" string="Faktura"/>
+                            <field name="payment_id" string="Platba v účetnictví"/>
+                        </group>
+                        <group>
+                            <field name="accounting_info_html" widget="html" nolabel="1"/>
+                            <div class="o_row">
+                                <button name="action_view_sale_order" string="📦 Objednávka" type="object"
+                                        class="btn-link" icon="fa-shopping-cart"
+                                        invisible="not sale_order_id"/>
+                                <button name="action_create_invoice" string="📄 Vytvořit fakturu" type="object"
+                                        class="btn-primary" icon="fa-file-text-o"
+                                        invisible="invoice_id or status in ('cancelled', 'reserved')"/>
+                                <button name="action_view_invoice" string="📄 Faktura" type="object"
+                                        class="btn-link" icon="fa-file-text-o"
+                                        invisible="not invoice_id"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Fakturační údaje -->
+                    <group string="Fakturační údaje" invisible="needs_invoice == False" col="2">
+                        <group>
                             <field name="needs_invoice" />
                             <field name="invoice_company" string="Firma" invisible="needs_invoice == False" />
                             <field name="invoice_tax_id" string="DIČ" invisible="needs_invoice == False" />
+                        </group>
+                        <group>
                             <field name="invoice_vat" string="IČ" invisible="needs_invoice == False" />
                             <field name="invoice_address" string="Adresa" invisible="needs_invoice == False" />
                         </group>

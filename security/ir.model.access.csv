@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_modern_bus_reservation,access_modern_bus_reservation,model_modern_bus_reservation,base.group_user,1,1,1,1
+access_modern_bus_reservation,access_modern_bus_reservation,ie_bus_ticket_admin.model_modern_bus_reservation,base.group_user,1,1,1,1
+access_change_status_wizard,access_change_status_wizard,model_modern_bus_reservation_change_status_wizard,base.group_user,1,1,1,1

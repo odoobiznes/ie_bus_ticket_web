@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Global font override to fix CORS issues with Google Fonts -->
+    <template id="font_override_assets" name="Font Override Assets">
+        <t t-call-assets="ie_bus_ticket_web.font_override_css"/>
+    </template>
+
+    <!-- Add CSS files to frontend assets bundle -->
+    <record id="modern_booking_css" model="ir.asset">
+        <field name="name">Modern Booking CSS</field>
+        <field name="bundle">web.assets_frontend</field>
+        <field name="path">ie_bus_ticket_web/static/src/css/modern_booking.css</field>
+    </record>
+
+    <record id="font_override_css" model="ir.asset">
+        <field name="name">Font Override CSS</field>
+        <field name="bundle">web.assets_frontend</field>
+        <field name="path">ie_bus_ticket_web/static/src/css/font_override.css</field>
+    </record>
+
+    <!-- Also add to backend assets in case fonts are loaded there -->
+    <record id="font_override_backend_css" model="ir.asset">
+        <field name="name">Font Override Backend CSS</field>
+        <field name="bundle">web.assets_backend</field>
+        <field name="path">ie_bus_ticket_web/static/src/css/font_override.css</field>
+        <field name="sequence">100</field>
+    </record>
+</odoo>

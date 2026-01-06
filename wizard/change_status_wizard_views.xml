@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Wizard form view -->
+    <record id="view_change_status_wizard_form" model="ir.ui.view">
+        <field name="name">modern.bus.reservation.change.status.wizard.form</field>
+        <field name="model">modern.bus.reservation.change.status.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Změna statusu rezervace">
+                <group>
+                    <group string="Rezervace">
+                        <field name="reservation_id" readonly="1"/>
+                        <field name="current_status"/>
+                    </group>
+                    <group string="Nový status">
+                        <field name="new_status"/>
+                        <field name="reason" placeholder="Volitelný důvod změny..."/>
+                    </group>
+                </group>
+
+                <div class="alert alert-info" role="alert" style="margin-top: 10px;">
+                    <strong>📧 Automatické akce podle nového statusu:</strong>
+                    <ul style="margin-bottom: 0;">
+                        <li><strong>Zaplaceno:</strong> Email s potvrzením + jízdenka + QR kód, vytvoření faktury</li>
+                        <li><strong>Rezervováno:</strong> Email s rezervací + platební link</li>
+                        <li><strong>Potvrzeno:</strong> Email s potvrzením + jízdenka</li>
+                        <li><strong>Zrušeno:</strong> Email o zrušení</li>
+                        <li><strong>Vypršelo:</strong> Email o vypršení rezervace</li>
+                    </ul>
+                </div>
+
+                <footer>
+                    <button name="action_change_status" string="✅ Změnit a odeslat" type="object" class="btn-primary"/>
+                    <button string="Zrušit" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Wizard action -->
+    <record id="action_change_status_wizard" model="ir.actions.act_window">
+        <field name="name">📊 Změnit status</field>
+        <field name="res_model">modern.bus.reservation.change.status.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="ie_bus_ticket_admin.model_modern_bus_reservation"/>
+    </record>
+</odoo>

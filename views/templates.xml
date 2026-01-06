@@ -3,6 +3,7 @@
     <template id="bus_booking_search_template" name="Modern Bus Booking Search">
         <t t-call="website.layout">
             <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/font_override.css"/>
                 <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
             </t>
             <div class="modern-bus-booking">
@@ -17,7 +18,7 @@
 
                         <div class="modern-form-row">
                             <div class="modern-form-group">
-                                <select name="start_point" id="start_point" class="modern-form-control" required="true">
+                                <select name="start_point" id="start_point" class="modern-form-control">
                                     <option value="">Звідки</option>
                                     <t t-foreach="points" t-as="point">
                                         <option t-att-value="point.id" t-esc="point.name"/>
@@ -33,13 +34,16 @@
 
                             <div class="modern-form-group">
                                 <input type="date" name="travel_date" id="travel_date" class="modern-form-control"
-                                       t-att-value="default_date_iso"  required="true"/>
+                                       t-att-value="default_date_iso"/>
                             </div>
 
-                            <div class="modern-form-group">
-                            <button type="submit" class="modern-btn-search" name="search_submit">
-                                <i class="fa fa-search"></i> Пошук
-                            </button>
+                            <div class="modern-form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button type="submit" class="modern-btn-search" name="search_submit">
+                                    <i class="fa fa-search"></i> Пошук
+                                </button>
+                                <a href="/pwa/client" class="modern-btn-tickets" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-radius: 25px; text-decoration: none; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); transition: all 0.2s;">
+                                    <i class="fa fa-ticket"></i> Мої квитки
+                                </a>
                             </div>
                         </div>
                     </form>
@@ -376,8 +380,21 @@
                             <a href="/bus-booking" class="btn-back-circle" title="Назад">
                                 <i class="fa fa-arrow-left"></i>
                             </a>
-                            <h2>Знайдені рейси</h2>
+                            <t t-if="show_all_directions">
+                                <h2>🚌 Найближчі рейси</h2>
+                            </t>
+                            <t t-else="">
+                                <h2>Знайдені рейси</h2>
+                            </t>
                         </div>
+
+                        <t t-if="show_all_directions">
+                            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 10px; padding: 10px 15px; margin-bottom: 12px;">
+                                <p style="margin: 0; font-size: 0.9rem; color: #1565c0;">
+                                    📍 Показуємо найближчі 5 рейсів у всіх напрямках
+                                </p>
+                            </div>
+                        </t>
 
                         <t t-if="routes">
                             <p class="tap-hint">👆 Торкніться рейсу → вибір місць</p>
@@ -442,7 +459,7 @@
                                     </div>
                                     <!-- Row 3: Price button centered -->
                                     <div style="text-align: center;">
-                                        <a t-attf-href="/bus-booking/book?route_id=#{next_route['route_id']}"
+                                        <a t-attf-href="/bus-booking/book?route_id=#{next_route['id']}"
                                            style="display: inline-block; background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%); color: #fff; padding: 10px 30px; border-radius: 25px; font-size: 1.1rem; font-weight: 700; text-decoration: none; box-shadow: 0 3px 8px rgba(46,125,50,0.3); transition: all 0.2s;">
                                             🎫 <t t-esc="int(next_route['price'])"/> ₴
                                         </a>
@@ -465,6 +482,219 @@
 
     <template id="bus_booking_confirmation_template" name="Modern Bus Booking Confirmation">
         <t t-call="website.layout">
+            <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/font_override.css"/>
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+                <style>
+                    /* Confirmation Page Enhanced Styles */
+                    .confirmation-container {
+                        max-width: 700px;
+                        margin: 40px auto;
+                        padding: 0 20px;
+                    }
+
+                    .confirmation-card {
+                        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+                        border-radius: 20px;
+                        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+                        padding: 40px;
+                        text-align: center;
+                        border: 1px solid #e2e8f0;
+                    }
+
+                    .success-icon {
+                        width: 90px;
+                        height: 90px;
+                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 25px;
+                        font-size: 45px;
+                        color: white;
+                        box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);
+                    }
+
+                    .confirmation-title {
+                        font-size: 1.8rem;
+                        color: #1f2937;
+                        margin-bottom: 10px;
+                        font-weight: 600;
+                    }
+
+                    .confirmation-subtitle {
+                        color: #6b7280;
+                        font-size: 1.1rem;
+                        margin-bottom: 25px;
+                    }
+
+                    .unpaid-status {
+                        color: #dc2626;
+                        font-weight: 700;
+                        background: #fee2e2;
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 0.85rem;
+                    }
+
+                    .reservation-details {
+                        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                        border-radius: 16px;
+                        padding: 25px;
+                        margin: 25px 0;
+                        text-align: left;
+                        border: 1px solid #bae6fd;
+                    }
+
+                    .detail-row {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px 0;
+                        border-bottom: 1px solid rgba(186, 230, 253, 0.5);
+                    }
+
+                    .detail-row:last-child {
+                        border-bottom: none;
+                    }
+
+                    .detail-label {
+                        font-weight: 500;
+                        color: #475569;
+                        font-size: 0.95rem;
+                    }
+
+                    .detail-value {
+                        color: #1e293b;
+                        font-weight: 600;
+                    }
+
+                    .reservation-number {
+                        font-size: 1.2rem;
+                        color: #0284c7;
+                        font-weight: 700;
+                    }
+
+                    .total-price {
+                        font-size: 1.3rem;
+                        color: #059669;
+                        font-weight: 700;
+                    }
+
+                    .warning-box.urgent {
+                        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 16px;
+                        padding: 25px;
+                        margin: 25px 0;
+                        text-align: left;
+                        box-shadow: 0 10px 30px rgba(220, 38, 38, 0.2);
+                    }
+
+                    .warning-box.urgent h4 {
+                        color: white;
+                        margin-top: 0;
+                        margin-bottom: 15px;
+                        font-size: 1.1rem;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+
+                    .warning-box.urgent p {
+                        color: rgba(255,255,255,0.95);
+                        margin: 10px 0;
+                        line-height: 1.6;
+                    }
+
+                    .warning-box.urgent a {
+                        color: #fef08a;
+                        text-decoration: none;
+                        font-weight: 600;
+                    }
+
+                    .warning-box.urgent a:hover {
+                        text-decoration: underline;
+                    }
+
+                    .contact-info {
+                        background: rgba(255,255,255,0.1);
+                        border-radius: 10px;
+                        padding: 15px;
+                        margin-top: 15px;
+                    }
+
+                    .action-buttons {
+                        display: flex;
+                        gap: 15px;
+                        justify-content: center;
+                        margin-top: 30px;
+                        flex-wrap: wrap;
+                    }
+
+                    .btn-pay {
+                        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                        color: white;
+                        padding: 16px 40px;
+                        border-radius: 12px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        font-size: 1.1rem;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 10px;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
+                    }
+
+                    .btn-pay:hover {
+                        transform: translateY(-3px);
+                        box-shadow: 0 12px 35px rgba(5, 150, 105, 0.4);
+                        color: white;
+                        text-decoration: none;
+                    }
+
+                    .btn-home {
+                        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+                        color: white;
+                        padding: 16px 40px;
+                        border-radius: 12px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        font-size: 1.1rem;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 10px;
+                        transition: all 0.3s ease;
+                    }
+
+                    .btn-home:hover {
+                        transform: translateY(-3px);
+                        color: white;
+                        text-decoration: none;
+                    }
+
+                    @media (max-width: 600px) {
+                        .confirmation-card {
+                            padding: 25px 20px;
+                        }
+                        .action-buttons {
+                            flex-direction: column;
+                        }
+                        .btn-pay, .btn-home {
+                            width: 100%;
+                            justify-content: center;
+                        }
+                        .detail-row {
+                            flex-direction: column;
+                            align-items: flex-start;
+                            gap: 5px;
+                        }
+                    }
+                </style>
+            </t>
 
             <div class="confirmation-container">
                 <div class="confirmation-card">
@@ -498,8 +728,33 @@
                                 <t t-esc="reservation.route_id.trip_date" t-options='{"widget": "date", "format": "dd.MM.yyyy"}'/>
                             </span>
                         </div>
+
+                        <!-- Boarding point with time and address -->
+                        <div class="detail-row" style="background: #e8f5e9;">
+                            <span class="detail-label">🚏 Посадка:</span>
+                            <span class="detail-value">
+                                <strong><t t-esc="boarding_point_name"/></strong>
+                                <t t-if="boarding_time"> (<t t-esc="boarding_time"/>)</t>
+                                <t t-if="boarding_address">
+                                    <br/><small style="color: #666;"><t t-esc="boarding_address"/></small>
+                                </t>
+                            </span>
+                        </div>
+
+                        <!-- Dropping point with time and address -->
+                        <div class="detail-row" style="background: #e8f5e9;">
+                            <span class="detail-label">🏁 Висадка:</span>
+                            <span class="detail-value">
+                                <strong><t t-esc="dropping_point_name"/></strong>
+                                <t t-if="dropping_time"> (<t t-esc="dropping_time"/>)</t>
+                                <t t-if="dropping_address">
+                                    <br/><small style="color: #666;"><t t-esc="dropping_address"/></small>
+                                </t>
+                            </span>
+                        </div>
+
                         <div class="detail-row">
-                            <span class="detail-label">Обрані місця:</span>
+                            <span class="detail-label">💺 Обрані місця:</span>
                             <span class="detail-value">
                                 <t t-esc="reservation.selected_seats"/>
                             </span>
@@ -511,7 +766,7 @@
                             </span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">Загальна ціна:</span>
+                            <span class="detail-label">💰 Загальна ціна:</span>
                             <span class="detail-value total-price">
                                 <t t-esc="total_price"/> UAH
                             </span>
@@ -553,7 +808,8 @@
         <template id="bus_booking_book_template" name="Modern Bus Booking - Seat Selection">
             <t t-call="website.layout">
                 <t t-set="head">
-                    <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+                    <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/font_override.css"/>
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
                     <style>
                         /* Compact seat selection page */
                         .seat-selection-v2 { padding: 10px; max-width: 600px; margin: 0 auto; }
@@ -612,20 +868,76 @@
                         <h1>Вибір місць</h1>
                     </div>
 
-                    <!-- Route info table -->
-                    <div class="route-table-v2">
+                    <!-- Route info table (clickable to change search) -->
+                    <div class="route-table-v2" style="cursor: pointer;" onclick="document.getElementById('searchChangePanel').style.display = document.getElementById('searchChangePanel').style.display === 'none' ? 'block' : 'none';">
                         <div class="route-table-row1">
                             <span><t t-esc="route.bording_from.name"/> → <t t-esc="route.to.name"/></span>
-                            <span t-field="route.trip_date" t-options='{"widget": "date"}'/>
+                            <span><t t-esc="route.trip_date.strftime('%d.%m.%Y') if route.trip_date else '—'"/></span>
                         </div>
                         <div class="route-table-row2">
                             <span>🕐 <t t-esc="departure_time or '—'"/> → <t t-esc="arrival_time or '—'"/></span>
                             <span class="route-price-badge"><t t-esc="int(route.price)"/> ₴</span>
                         </div>
+                        <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
+                            <i class="fa fa-pencil"></i> Натисніть для зміни пошуку
+                        </div>
                     </div>
 
-                    <!-- Seat layout box -->
-                    <div class="seat-box-v2">
+                    <!-- Search change panel (hidden by default) -->
+                    <div id="searchChangePanel" style="display: none; background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #e0e0e0;">
+                        <form action="/bus-booking/search-routes" method="post">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+                                <div style="flex: 1; min-width: 120px;">
+                                    <label style="font-size: 12px; color: #666;">Звідки</label>
+                                    <select name="start_point" class="form-control" style="border-radius: 8px;">
+                                        <t t-foreach="request.env['ie.bus.point'].sudo().search([])" t-as="point">
+                                            <option t-att-value="point.id" t-att-selected="point.id == route.bording_from.id">
+                                                <t t-esc="point.name"/>
+                                            </option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div style="flex: 1; min-width: 120px;">
+                                    <label style="font-size: 12px; color: #666;">Куди</label>
+                                    <select name="end_point" class="form-control" style="border-radius: 8px;">
+                                        <option value="">Будь-куди</option>
+                                        <t t-foreach="request.env['ie.bus.point'].sudo().search([])" t-as="point">
+                                            <option t-att-value="point.id" t-att-selected="point.id == route.to.id">
+                                                <t t-esc="point.name"/>
+                                            </option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div style="flex: 1; min-width: 120px;">
+                                    <label style="font-size: 12px; color: #666;">Дата</label>
+                                    <input type="date" name="travel_date" class="form-control" style="border-radius: 8px;"
+                                           t-att-value="route.trip_date.strftime('%Y-%m-%d') if route.trip_date else ''"/>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-primary" style="border-radius: 8px; padding: 8px 20px;">
+                                        <i class="fa fa-search"></i> Шукати
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Seat selection toggle (AUTO/Manual) -->
+                    <div class="seat-toggle-box" style="background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 2px solid #e0e0e0;">
+                        <div onclick="window.toggleSeatSelection()" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 16px; color: #333;">
+                                <i class="fa fa-ticket" style="color: #43a047;"></i>
+                                Вибрати місце (необов'язково)
+                            </span>
+                            <span id="selectedSeatDisplay" style="background: linear-gradient(135deg, #43a047, #2e7d32); color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 14px;">
+                                AUTO
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Seat layout box -->
+                    <div class="seat-box-v2" id="seatSelectionPanel" style="display: none;">
                         <div class="bus-layout-v2" id="busLayout">
                             <t t-set="total_rows" t-value="row_count or 15"/>
                             <t t-foreach="range(1, total_rows + 1)" t-as="row_num">
@@ -667,6 +979,25 @@
                         <p><span>Разом:</span> <span id="totalPrice" class="price-display">0 ₴</span></p>
                     </div>
 
+                    <!-- Contact info warning -->
+                    <div class="contact-info-box" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border: 2px solid #ffc107; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; align-items: flex-start; gap: 10px;">
+                            <span style="font-size: 24px;">⚠️</span>
+                            <div>
+                                <strong style="color: #856404; font-size: 15px;">Важливо про ваші контакти:</strong>
+                                <ul style="margin: 8px 0 8px 15px; padding: 0; color: #856404; font-size: 14px;">
+                                    <li><i class="fa fa-phone" style="width: 16px;"></i> <strong>Телефон</strong> - ми зателефонуємо для підтвердження</li>
+                                    <li><i class="fa fa-envelope" style="width: 16px;"></i> <strong>Email</strong> - на нього прийде квиток</li>
+                                </ul>
+                                <p style="margin: 0; font-size: 13px; color: #856404;">
+                                    Переконайтесь, що дані правильні! Краще
+                                    <a href="#" onclick="window.showVerificationModal(); return false;" style="color: #004aad; text-decoration: underline; font-weight: bold;">підтвердити контакт</a>
+                                    зараз.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Passenger form -->
                     <div class="form-box-v2">
                         <form id="bookingForm">
@@ -676,25 +1007,31 @@
                             <input type="hidden" id="dropping_point" name="dropping_point" t-att-value="route.to.id"/>
 
                             <div class="form-group">
-                                <label for="passenger_name">Повне ім'я *</label>
-                                <input type="text" id="passenger_name" name="passenger_name" placeholder="Введіть ім'я" required="true"/>
+                                <label for="passenger_name"><i class="fa fa-user"></i> Ім'я (необов'язково)</label>
+                                <input type="text" id="passenger_name" name="passenger_name"
+                                       t-att-value="user_data.get('name', '') if user_data else ''"
+                                       placeholder="Введіть ім'я"/>
                             </div>
 
                             <div class="form-group">
-                                <label for="passenger_email">Email *</label>
-                                <input type="email" id="passenger_email" name="passenger_email" placeholder="email@example.com" required="true"/>
+                                <label for="passenger_email"><i class="fa fa-envelope"></i> Email</label>
+                                <input type="email" id="passenger_email" name="passenger_email"
+                                       t-att-value="user_data.get('email', '') if user_data else ''"
+                                       placeholder="email@example.com" required="true"/>
                             </div>
 
                             <div class="form-group">
-                                <label for="passenger_phone">Телефон *</label>
-                                <input type="tel" id="passenger_phone" name="passenger_phone" placeholder="+380..." required="true"/>
+                                <label for="passenger_phone"><i class="fa fa-phone"></i> Телефон</label>
+                                <input type="tel" id="passenger_phone" name="passenger_phone"
+                                       t-att-value="user_data.get('phone', '') if user_data else ''"
+                                       placeholder="+380..." required="true"/>
                             </div>
 
-                            <button type="button" class="btn-reserve-v2" onclick="window.reserveSeats()">
-                                <i class="fa fa-clock-o"></i> Забронювати
+                            <button type="button" class="btn-buy-v2" onclick="window.buyTickets()" style="background: linear-gradient(135deg, #43a047, #2e7d32); margin-bottom: 10px;">
+                                <i class="fa fa-credit-card"></i> Купити
                             </button>
-                            <button type="button" class="btn-buy-v2" onclick="window.buyTickets()">
-                                <i class="fa fa-credit-card"></i> Купити та оплатити
+                            <button type="button" class="btn-reserve-v2" onclick="window.reserveSeats()" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                <i class="fa fa-bookmark"></i> Бронювати
                             </button>
                         </form>
                     </div>
@@ -712,6 +1049,114 @@
                         window.selectedSeats = [];
                         window.pricePerSeat = 0;
                         window.seatData = {};
+                        window.seatSelectionVisible = false;
+
+                        // --- SEAT TOGGLE FUNCTION ---
+                        window.toggleSeatSelection = function() {
+                            var panel = document.getElementById('seatSelectionPanel');
+                            if (!panel) return;
+
+                            window.seatSelectionVisible = !window.seatSelectionVisible;
+                            panel.style.display = window.seatSelectionVisible ? 'block' : 'none';
+                        };
+
+                        // --- VERIFICATION MODAL ---
+                        window.showVerificationModal = function() {
+                            var emailInput = document.getElementById('passenger_email');
+                            var phoneInput = document.getElementById('passenger_phone');
+                            var contact = (emailInput ? emailInput.value : '') || (phoneInput ? phoneInput.value : '') || '';
+
+                            var overlay = document.createElement('div');
+                            overlay.id = 'verificationModal';
+                            overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999;';
+
+                            overlay.innerHTML = '<div style="background: white; border-radius: 16px; padding: 25px; max-width: 400px; width: 90%; text-align: center;">' +
+                                '<h3 style="margin: 0 0 15px; color: #333;">🔐 Підтвердження контакту</h3>' +
+                                '<p style="color: #666; margin-bottom: 15px;">Введіть email або телефон для підтвердження</p>' +
+                                '<div id="verifyStep1">' +
+                                    '<input type="text" id="verifyContact" value="' + contact + '" placeholder="email@example.com або +380..." style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; margin-bottom: 15px;"/>' +
+                                    '<button onclick="window.sendVerificationCode()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #43a047, #2e7d32); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">📧 Надіслати код</button>' +
+                                '</div>' +
+                                '<div id="verifyStep2" style="display: none;">' +
+                                    '<p style="color: #666; margin-bottom: 10px;">Код надіслано на <strong id="verifyContactDisplay"></strong></p>' +
+                                    '<input type="text" id="verifyCode" maxlength="6" placeholder="000000" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 24px; text-align: center; letter-spacing: 8px; box-sizing: border-box; margin-bottom: 15px;"/>' +
+                                    '<button onclick="window.verifyCode()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #43a047, #2e7d32); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-bottom: 10px;">✅ Підтвердити</button>' +
+                                    '<button onclick="document.getElementById(\'verifyStep2\').style.display=\'none\'; document.getElementById(\'verifyStep1\').style.display=\'block\';" style="width: 100%; padding: 10px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">← Змінити контакт</button>' +
+                                '</div>' +
+                                '<button onclick="window.closeVerificationModal()" style="margin-top: 15px; padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer;">✕ Закрити</button>' +
+                            '</div>';
+
+                            document.body.appendChild(overlay);
+                        };
+
+                        window.closeVerificationModal = function() {
+                            var modal = document.getElementById('verificationModal');
+                            if (modal) modal.remove();
+                        };
+
+                        window.verificationContact = '';
+
+                        window.sendVerificationCode = function() {
+                            var contactInput = document.getElementById('verifyContact');
+                            if (!contactInput || !contactInput.value.trim()) {
+                                alert('Введіть email або телефон');
+                                return;
+                            }
+
+                            window.verificationContact = contactInput.value.trim();
+
+                            fetch('/bus-booking/api/send-verification', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({jsonrpc: '2.0', method: 'call', params: {contact: window.verificationContact}, id: 1})
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(json) {
+                                if (json.result && json.result.success) {
+                                    document.getElementById('verifyStep1').style.display = 'none';
+                                    document.getElementById('verifyStep2').style.display = 'block';
+                                    document.getElementById('verifyContactDisplay').textContent = window.verificationContact;
+                                } else {
+                                    alert(json.result ? json.result.error : 'Помилка надсилання');
+                                }
+                            })
+                            .catch(function() {
+                                alert('Помилка з\'єднання');
+                            });
+                        };
+
+                        window.verifyCode = function() {
+                            var codeInput = document.getElementById('verifyCode');
+                            if (!codeInput || codeInput.value.length !== 6) {
+                                alert('Введіть 6-значний код');
+                                return;
+                            }
+
+                            fetch('/bus-booking/api/verify-code', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({jsonrpc: '2.0', method: 'call', params: {contact: window.verificationContact, code: codeInput.value}, id: 1})
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(json) {
+                                if (json.result && json.result.success) {
+                                    alert('✅ Контакт підтверджено!');
+                                    // Fill in verified contact
+                                    var isEmail = window.verificationContact.indexOf('@') !== -1;
+                                    if (isEmail) {
+                                        document.getElementById('passenger_email').value = window.verificationContact;
+                                    } else {
+                                        document.getElementById('passenger_phone').value = window.verificationContact;
+                                    }
+                                    window.closeVerificationModal();
+                                } else {
+                                    alert(json.result ? json.result.error : 'Невірний код');
+                                }
+                            })
+                            .catch(function() {
+                                alert('Помилка з\'єднання');
+                            });
+                        };
 
                         // --- CORE FUNCTIONS ---
                         window.modernBusBooking_toggleSeat = function(seatId) {
@@ -737,6 +1182,7 @@
 
                         window.updateSelectedSeatsDisplay = function() {
                             var info = document.getElementById('selectedSeatsInfo');
+                            var seatDisplay = document.getElementById('selectedSeatDisplay');
                             if (!info) return;
 
                             var list = document.getElementById('selectedSeatsList');
@@ -759,9 +1205,19 @@
                                 hidden.value = window.selectedSeats.join(',');
                                 count.textContent = window.selectedSeats.length;
                                 totalPriceEl.textContent = Math.round(window.pricePerSeat * window.selectedSeats.length) + ' ₴';
+                                // Update toggle display
+                                if (seatDisplay) {
+                                    seatDisplay.textContent = readableSeats.join(', ');
+                                    seatDisplay.style.background = 'linear-gradient(135deg, #1976d2, #1565c0)';
+                                }
                             } else {
                                 info.style.display = 'none';
                                 hidden.value = '';
+                                // Reset to AUTO
+                                if (seatDisplay) {
+                                    seatDisplay.textContent = 'AUTO';
+                                    seatDisplay.style.background = 'linear-gradient(135deg, #43a047, #2e7d32)';
+                                }
                             }
                         };
 
@@ -925,6 +1381,7 @@
     <template id="bus_booking_payment_success_template" name="Modern Bus Booking Payment Success">
         <t t-call="website.layout">
             <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/font_override.css"/>
                 <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
             </t>
 
