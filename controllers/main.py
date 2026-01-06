@@ -653,6 +653,7 @@ class ModernBusBooking(http.Controller):
 
     def _process_route_destination(self, route, sp_line, trip_date, start_point_int, end_point_int, start_time_float, end_time_float, boarding_route_line):
         """Process a single route-destination combination and return search result dict or None"""
+        trip = None  # Initialize trip to avoid UnboundLocalError
         try:
             start_time = float_to_time(start_time_float)
             end_time = float_to_time(end_time_float)
@@ -690,35 +691,33 @@ class ModernBusBooking(http.Controller):
                     _logger.info(f"[MBB] Skip {route.name} to {end_point_int}: sales closed (departs in {minutes_until} min)")
                 return None
 
-            # Check if trip exists for this date BEFORE trying to create
+            # Check if trip exists for this date
             trip = request.env['ie.bus.trip'].sudo().search([
                 ('route', '=', route.id),
                 ('trip_date', '=', trip_date)
             ], limit=1)
 
-            # Only create if it doesn't exist and sales are open
+            # Create if it doesn't exist
             if not trip:
-                trip = request.env['ie.bus.trip'].sudo().search([
-                    ('route', '=', route.id),
-                    ('trip_date', '=', trip_date)
-                ], limit=1)
-
-                if not trip:
-                    _logger.info(f"[MBB] Creating trip for {route.name} on {trip_date}")
-                    try:
-                        trip = request.env['ie.bus.trip'].sudo().create({
-                            'route': route.id,
-                            'trip_date': trip_date,
-                            'bus_id': route.fleet_id.id if route.fleet_id else False,
-                        })
-                    except Exception as e:
-                        _logger.warning(f"[MBB] Could not create trip: {e}")
-                        trip = request.env['ie.bus.trip'].sudo().search([
-                            ('route', '=', route.id),
-                            ('trip_date', '=', trip_date)
-                        ], limit=1)
-                        if not trip:
-                            return None
+                _logger.info(f"[MBB] Creating trip for {route.name} on {trip_date}")
+                try:
+                    trip = request.env['ie.bus.trip'].sudo().create({
+                        'route': route.id,
+                        'trip_date': trip_date,
+                        'bus_id': route.fleet_id.id if route.fleet_id else False,
+                    })
+                except Exception as e:
+                    _logger.error(f"[MBB] Could not create trip: {e}")
+                    # Pokus znovu načíst (možná někdo jiný vytvořil)
+                    trip = request.env['ie.bus.trip'].sudo().search([
+                        ('route', '=', route.id),
+                        ('trip_date', '=', trip_date)
+                    ], limit=1)
+                    
+            # Pokud trip stále neexistuje, skip
+            if not trip:
+                _logger.warning(f"[MBB] No trip found/created for {route.name} on {trip_date}")
+                return None
 
             # Check if sales are disabled for this trip
             if trip and getattr(trip, 'disable_sales', False):
@@ -747,7 +746,7 @@ class ModernBusBooking(http.Controller):
                     'price': price_val,
                     'bording_from': start_point_int,
                     'to': end_point_int,
-                    'bus_id': trip.bus_id.id if trip and trip.bus_id else False,
+                    'bus_id': getattr(trip, 'bus_id', False).id if getattr(trip, 'bus_id', False) else False,
                     'route': route.id,
                     'trip_id': trip.id if trip else False,
                 })
