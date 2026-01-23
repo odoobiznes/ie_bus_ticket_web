@@ -995,14 +995,19 @@ class ModernBusReservation(models.Model):
 
     def _get_contacts_html(self, t):
         """Generate HTML for contacts section"""
-        dispatcher_phone = '+380673124850'
+        dispatcher_phones = ['+380673124850', '+420776359353']
         dispatcher_email = 'symchera@email.cz'
+
+        phones_html = '<br/>'.join([
+            f'📱 <a href="tel:{p}" style="color:#004aad;text-decoration:none;font-weight:bold;">{p}</a>'
+            for p in dispatcher_phones
+        ])
 
         return f'''
             <div style="background: #f0fdf4; padding: 15px; border-radius: 8px;">
                 <h4 style="margin-top: 0; color: #166534;">📞 {t['contacts']}</h4>
                 <p><strong>{t['dispatcher']} - Symchera BUS:</strong><br/>
-                📱 <a href="tel:{dispatcher_phone}" style="color:#004aad;font-weight:bold;">{dispatcher_phone}</a><br/>
+                {phones_html}<br/>
                 📧 <a href="mailto:{dispatcher_email}" style="color:#004aad;font-weight:bold;">{dispatcher_email}</a></p>
             </div>
         '''

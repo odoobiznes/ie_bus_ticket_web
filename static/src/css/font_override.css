@@ -1,29 +1,41 @@
-/* 
+/*
  * Global Font Override - Replace Google Fonts with System Fonts
  * This fixes CORS issues with fonts.googleapis.com
+ * NOTE: Excludes icon fonts (FontAwesome, bootstrap-icons, etc.)
  */
 
-/* Override all Inter and Inter Tight font references */
-* {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+/* Override text fonts but exclude icon fonts */
+body,
+html {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Specific overrides for common elements */
-body, html {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-h1, h2, h3, h4, h5, h6 {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-}
-
-p, span, div, a, button, input, select, textarea, label {
-    font-family: inherit !important;
+/* Only override text elements, not icons */
+p,
+span:not(.fa):not(.oi):not([class*="fa-"]):not([class*="bi-"]),
+div:not(.fa):not(.oi),
+a:not(.fa):not(.oi),
+button,
+input,
+select,
+textarea,
+label {
+    font-family: inherit;
 }
 
 /* Override Odoo website fonts */
-.s_website_form, .o_website_form {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+.s_website_form,
+.o_website_form {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Remove @font-face declarations that might try to load external fonts */

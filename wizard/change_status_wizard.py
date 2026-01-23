@@ -394,9 +394,8 @@ class ChangeStatusWizard(models.TransientModel):
             <div style="background: #f0fdf4; padding: 15px; border-radius: 8px;">
                 <h4 style="margin-top: 0; color: #166534;">📞 Kontakty</h4>
                 <p><strong>Dispečer - Symchera BUS:</strong><br/>
-                📱 <a href="tel:+380739065165" style="color:#004aad;font-weight:bold;">+380 739 065 165</a><br/>
-                📱 <a href="tel:+420447617002" style="color:#004aad;font-weight:bold;">+420 447 617 002</a><br/>
-                📱 <a href="tel:+380673124850" style="color:#004aad;font-weight:bold;">+380 673 124 850</a><br/>
+                📱 <a href="tel:+380673124850" style="color:#004aad;font-weight:bold;">+380673124850</a><br/>
+                📱 <a href="tel:+420776359353" style="color:#004aad;font-weight:bold;">+420776359353</a><br/>
                 📧 <a href="mailto:symchera@email.cz" style="color:#004aad;font-weight:bold;">symchera@email.cz</a></p>
             </div>
         '''

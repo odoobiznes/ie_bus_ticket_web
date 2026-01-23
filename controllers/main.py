@@ -34,6 +34,54 @@ def float_to_time(float_time):
 
 class ModernBusBooking(http.Controller):
 
+    def _auto_assign_seat(self, trip_id):
+        """Získat další volné sedadlo pro trip - vrátí string např. 'AUTO-5A'"""
+        try:
+            trip = request.env['ie.bus.trip'].sudo().browse(trip_id)
+            if not trip.exists():
+                return 'AUTO-1'
+
+            # Získat konfiguraci autobusu
+            bus_type = trip.bus_id.fleet_type if trip.bus_id else None
+            rows = bus_type.row_count if bus_type else 10
+            cols = bus_type.col_count if bus_type else 4
+
+            # Získat všechna obsazená sedadla
+            occupied_seats = set()
+            if 'modern.bus.reservation' in request.env:
+                reservations = request.env['modern.bus.reservation'].sudo().search([
+                    ('trip_id', '=', trip_id),
+                    ('status', 'in', ['reserved', 'paid', 'confirmed'])
+                ])
+                # Fallback na route_id
+                if not reservations and hasattr(trip, '_get_matching_search_result_ids'):
+                    matching_sr_ids = trip._get_matching_search_result_ids()
+                    if matching_sr_ids:
+                        reservations = request.env['modern.bus.reservation'].sudo().search([
+                            ('route_id', 'in', matching_sr_ids),
+                            ('status', 'in', ['reserved', 'paid', 'confirmed'])
+                        ])
+
+                for res in reservations:
+                    seats_str = res.selected_seats or res.seat_number or ''
+                    for seat in seats_str.split(','):
+                        seat = seat.strip()
+                        if seat and seat != 'AUTO' and not seat.startswith('AUTO-'):
+                            occupied_seats.add(seat)
+
+            # Najít první volné sedadlo
+            for row in range(1, rows + 1):
+                for col in range(1, cols + 1):
+                    seat_label = f"{row}{chr(64 + col)}"
+                    if seat_label not in occupied_seats:
+                        return f"AUTO-{seat_label}"
+
+            return f"AUTO-{len(occupied_seats) + 1}"
+
+        except Exception as e:
+            _logger.warning(f"Error getting available seat: {e}")
+            return 'AUTO-1'
+
     @http.route('/bus-booking-test', type='http', auth='public', website=True)
     def bus_booking_test(self, **kw):
         """Test page to check if updates work"""
@@ -713,7 +761,7 @@ class ModernBusBooking(http.Controller):
                         ('route', '=', route.id),
                         ('trip_date', '=', trip_date)
                     ], limit=1)
-                    
+
             # Pokud trip stále neexistuje, skip
             if not trip:
                 _logger.warning(f"[MBB] No trip found/created for {route.name} on {trip_date}")
@@ -1384,8 +1432,9 @@ class ModernBusBooking(http.Controller):
             boarding_point = kw.get('boarding_point')
             dropping_point = kw.get('dropping_point')
 
-            if not all([route_id, selected_seats, passenger_name, passenger_email, passenger_phone]):
-                return {'success': False, 'message': 'Vyplňte všechna povinná pole'}
+            # selected_seats není povinné - může být AUTO
+            if not all([route_id, passenger_email, passenger_phone]):
+                return {'success': False, 'message': 'Vyplňte všechna povinná pole (email, telefon)'}
 
             route = request.env['ie.bus.search.result'].sudo().browse(route_id)
             if not route.exists():
@@ -1434,6 +1483,15 @@ class ModernBusBooking(http.Controller):
                     formatted_seats.append(formatted_seat)
                 else:
                     formatted_seats.append(seat)  # Keep as is if already formatted
+
+            # Automaticky přiřadit sedadlo pokud je prázdné
+            if not formatted_seats or (len(formatted_seats) == 1 and formatted_seats[0] in ['', 'AUTO']):
+                trip_id = route.trip_id.id if route.trip_id else None
+                if trip_id:
+                    assigned_seat = self._auto_assign_seat(trip_id)
+                    formatted_seats = [assigned_seat]
+                else:
+                    formatted_seats = ['AUTO-1']
 
             reservation_vals = {
                 'route_id': route_id,
@@ -1646,8 +1704,91 @@ class ModernBusBooking(http.Controller):
 
     @http.route('/bus-booking/pay', type='http', auth='public', website=True, methods=['GET', 'POST'], csrf=False)
     def process_payment(self, **kw):
-        """Handle payment for a reservation"""
-        _logger.info(f"=== PROCESS PAYMENT: params={kw}")
+        """Zobrazit přehled informací před platbou"""
+        _logger.info(f"=== PROCESS PAYMENT (CONFIRM PAGE): params={kw}")
+        reservation_id = kw.get('reservation_id')
+
+        if not reservation_id:
+            _logger.warning("No reservation_id provided")
+            return request.redirect('/bus-booking')
+
+        try:
+            reservation = request.env['modern.bus.reservation'].sudo().browse(int(reservation_id))
+            if not reservation.exists():
+                _logger.warning(f"Reservation {reservation_id} does not exist")
+                return request.redirect('/bus-booking')
+
+            # Check if already paid
+            if reservation.status == 'paid':
+                _logger.info(f"Reservation {reservation_id} is already paid, showing success page")
+                return self.payment_success(reservation_id=reservation_id)
+
+            # Připravit data pro zobrazení
+            route = reservation.route_id
+
+            # Boarding/Dropping info
+            boarding_name = reservation.boarding_point.name if reservation.boarding_point else (route.bording_from.name if route and route.bording_from else '-')
+            dropping_name = reservation.dropping_point.name if reservation.dropping_point else (route.to.name if route and route.to else '-')
+
+            # Trip date
+            trip_date = route.trip_date.strftime('%d.%m.%Y') if route and route.trip_date else '-'
+
+            # Boarding time
+            boarding_time = ''
+            if route and route.trip_start_date:
+                hours = int(route.trip_start_date)
+                minutes = int((route.trip_start_date - hours) * 60)
+                boarding_time = f"{hours:02d}:{minutes:02d}"
+
+            # Seats
+            seat_display = reservation.selected_seats or reservation.seat_number or 'AUTO'
+            if reservation.selected_seats:
+                seat_count = len(reservation.selected_seats.split(','))
+            elif reservation.seat_number:
+                seat_count = len(reservation.seat_number.split(','))
+            else:
+                seat_count = 1
+
+            # Price
+            price_per_seat = reservation.get_correct_price()
+            total_amount = price_per_seat * seat_count
+
+            # Affiliate info
+            referral_code = getattr(reservation, 'referral_code', None) or ''
+            banner_code = getattr(reservation, 'banner_code', None) or ''
+            campaign_code = getattr(reservation, 'campaign_code', None) or ''
+
+            # Fallback to Many2one relations
+            if not referral_code and hasattr(reservation, 'affiliate_id') and reservation.affiliate_id:
+                referral_code = reservation.affiliate_id.custom_code or reservation.affiliate_id.referral_code or ''
+            if not banner_code and hasattr(reservation, 'affiliate_banner_id') and reservation.affiliate_banner_id:
+                banner_code = reservation.affiliate_banner_id.code or ''
+            if not campaign_code and hasattr(reservation, 'affiliate_campaign_id') and reservation.affiliate_campaign_id:
+                campaign_code = reservation.affiliate_campaign_id.code or ''
+
+            return request.render('ie_bus_ticket_web.bus_booking_pay_confirm_template', {
+                'reservation': reservation,
+                'boarding_name': boarding_name,
+                'dropping_name': dropping_name,
+                'trip_date': trip_date,
+                'boarding_time': boarding_time,
+                'seat_display': seat_display,
+                'seat_count': seat_count,
+                'price_per_seat': int(price_per_seat),
+                'total_amount': int(total_amount),
+                'referral_code': referral_code,
+                'banner_code': banner_code,
+                'campaign_code': campaign_code,
+            })
+
+        except Exception as e:
+            _logger.error(f"Error showing payment confirm page: {e}", exc_info=True)
+            return request.redirect('/bus-booking')
+
+    @http.route('/bus-booking/pay-now', type='http', auth='public', website=True, methods=['GET', 'POST'], csrf=False)
+    def process_payment_now(self, **kw):
+        """Provést samotnou platbu - redirect na Monobank"""
+        _logger.info(f"=== PROCESS PAYMENT NOW: params={kw}")
         reservation_id = kw.get('reservation_id')
 
         if not reservation_id:
@@ -1712,30 +1853,72 @@ class ModernBusBooking(http.Controller):
 
             price_per_seat = reservation.get_correct_price()
             total_amount = price_per_seat * seat_count
-            _logger.info(f"Creating sale order for {seat_count} seats × {price_per_seat} = {total_amount}")
+            _logger.info(f"Processing payment for {seat_count} seats × {price_per_seat} = {total_amount}")
 
-            # Create or get sale order for this reservation
+            # Pokusit se o přímou platbu přes Monobank
+            if 'payment.provider' in request.env:
+                try:
+                    monobank_provider = request.env['payment.provider'].sudo().search([
+                        ('code', '=', 'monobank'),
+                        ('state', '=', 'enabled')
+                    ], limit=1)
+
+                    if monobank_provider:
+                        _logger.info(f"Using Monobank provider for reservation {reservation_id}")
+
+                        # Získat callback URL
+                        base_url = request.httprequest.host_url.rstrip('/')
+                        callback_url = f"{base_url}/payment/monobank/notify"
+                        result_url = f"{base_url}/bus-booking/payment-success?reservation_id={reservation_id}"
+
+                        # Vytvořit platební odkaz přes Monobank
+                        payment_url = monobank_provider._monobank_get_api_url(
+                            amount=total_amount,
+                            callback_url=callback_url,
+                            result_url=result_url,
+                            external_id=reservation.name,
+                            partner_name=reservation.passenger_name,
+                            currency_name='UAH',
+                            transaction=None  # Bez transakce, přímý odkaz
+                        )
+
+                        if payment_url:
+                            _logger.info(f"Monobank payment URL created: {payment_url}")
+                            # Uložit do session pro callback
+                            request.session['bus_reservation_id'] = reservation.id
+                            # Pro externí URL použít werkzeug redirect přímo
+                            if payment_url.startswith('https://') or payment_url.startswith('http://'):
+                                from werkzeug.utils import redirect as werkzeug_redirect
+                                return werkzeug_redirect(payment_url, code=302)
+                            return request.redirect(payment_url)
+                        else:
+                            _logger.warning("Monobank returned empty payment URL")
+                except Exception as mono_error:
+                    _logger.error(f"Monobank error: {mono_error}", exc_info=True)
+
+            # Fallback: Zkusit vytvořit sale order a použít standardní checkout
+            _logger.info("Falling back to sale order method")
             try:
                 sale_order = self._get_or_create_sale_order(reservation, total_amount)
                 _logger.info(f"Sale order created/retrieved: {sale_order.id}")
+
+                # Store reservation ID in session for callback
+                request.session['bus_reservation_id'] = reservation.id
+                request.session['sale_order_id'] = sale_order.id
+                request.session['bus_booking_route_id'] = reservation.route_id.id
+
+                # Set this as the current sale order for the website
+                request.session['sale_order_id'] = sale_order.id
+                request.session['website_sale_current_pl'] = sale_order.id
+
+                # Skip cart page and go directly to payment
+                _logger.info(f"=== Redirecting to payment with order {sale_order.id}")
+                return request.redirect('/shop/payment')
+
             except Exception as sale_error:
-                _logger.warning(f"Could not create sale order: {sale_error}, redirecting to confirmation page")
-                # If sale order creation fails (e.g. sale module not installed),
-                # redirect to confirmation page where user can see reservation details
-                return request.redirect(f'/bus-booking/confirmation/{reservation_id}')
-
-            # Store reservation ID in session for callback
-            request.session['bus_reservation_id'] = reservation.id
-            request.session['sale_order_id'] = sale_order.id
-            request.session['bus_booking_route_id'] = reservation.route_id.id  # For back button
-
-            # Set this as the current sale order for the website
-            request.session['sale_order_id'] = sale_order.id
-            request.session['website_sale_current_pl'] = sale_order.id
-
-            # Skip cart page and go directly to payment to prevent price recalculation
-            _logger.info(f"=== Redirecting directly to payment with order {sale_order.id}")
-            return request.redirect('/shop/payment')
+                _logger.warning(f"Could not create sale order: {sale_error}")
+                # Fallback: zobrazit confirmation stránku s možností kontaktovat dispečera
+                return request.redirect(f'/bus-booking/confirmation/{reservation_id}?error=payment_unavailable')
 
         except Exception as e:
             _logger.error(f"Error during payment processing: {e}", exc_info=True)
@@ -2165,15 +2348,14 @@ class ModernBusBooking(http.Controller):
 
                             <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0; border-radius: 4px;">
                                 <h4 style="color: #0d47a1; margin-top: 0;">📞 Контакт диспетчера:</h4>
-                                <p style="color: #0d47a1; margin: 5px 0;">📞 +380 739 065 165</p>
-                                <p style="color: #0d47a1; margin: 5px 0;">📞 +420 447 617 002</p>
-                                <p style="color: #0d47a1; margin: 5px 0;">📞 +380 673 124 850</p>
+                                <p style="color: #0d47a1; margin: 5px 0;">📞 +380673124850</p>
+                                <p style="color: #0d47a1; margin: 5px 0;">📞 +420776359353</p>
                                 <p style="color: #0d47a1; margin: 5px 0;">✉️ symchera@email.cz</p>
                             </div>
                         </div>
 
                         <div style="background: #333; padding: 15px; text-align: center; border-radius: 0 0 8px 8px;">
-                            <p style="color: #999; font-size: 12px; margin: 0;">SymcheraBUS | symcherabus.eu | +380673124850</p>
+                            <p style="color: #999; font-size: 12px; margin: 0;">SymcheraBUS | symcherabus.eu | +380673124850 | +420776359353</p>
                         </div>
                     </div>
                 ''',
@@ -2186,3 +2368,310 @@ class ModernBusBooking(http.Controller):
 
         except Exception as e:
             _logger.error(f"Error sending reservation email: {e}")
+
+    # =========================================================================
+    # TICKET CHECK - Kontrola jízdenky s bezpečným tokenem
+    # =========================================================================
+
+    @http.route('/bus/ticket/check/<int:reservation_id>', type='http', auth='public', website=True)
+    def ticket_check(self, reservation_id, token=None, **kw):
+        """
+        Veřejná stránka pro kontrolu stavu jízdenky a platby.
+        Přístup pouze s platným tokenem z emailu.
+        """
+        import hashlib
+        # Najít rezervaci
+        reservation = request.env['modern.bus.reservation'].sudo().browse(reservation_id)
+        if not reservation.exists():
+            return request.render('website.404')
+
+        # Ověřit token
+        email = reservation.passenger_email or ''
+        expected_token = hashlib.sha256(f"{reservation.id}:{reservation.name}:{email}:symchera_secret".encode()).hexdigest()[:32]
+        if token != expected_token:
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>❌ Neplatný přístup | SymcheraBUS</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {{ font-family: Arial, sans-serif; background: #fee2e2; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+                    .error-box {{ background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 400px; }}
+                    h1 {{ color: #dc2626; }}
+                    a {{ color: #f97316; }}
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h1>❌ Neplatný přístup</h1>
+                    <p>Tento odkaz je neplatný nebo vypršel.</p>
+                    <p>Použijte prosím odkaz z vašeho emailu.</p>
+                    <p><a href="https://symcherabus.eu">← Zpět na hlavní stránku</a></p>
+                </div>
+            </body>
+            </html>
+            """
+
+        # DŮLEŽITÉ: Ověřit a opravit stav podle bankovního logu před zobrazením
+        try:
+            if hasattr(reservation, '_verify_and_fix_payment_status'):
+                was_fixed, fix_message = reservation._verify_and_fix_payment_status()
+                if was_fixed:
+                    _logger.info(f"[TICKET_CHECK] Auto-fixed status for {reservation.name}: {fix_message}")
+                    # Refresh reservation po opravě
+                    reservation = request.env['modern.bus.reservation'].sudo().browse(reservation.id)
+        except Exception as e:
+            _logger.warning(f"[TICKET_CHECK] Could not verify status: {e}")
+
+        # Získat detaily
+        status_info = self._get_ticket_status_info(reservation)
+        payment_info = self._get_payment_info(reservation)
+        route_info = self._get_route_info(reservation)
+
+        # Status badge
+        status_color = {
+            'reserved': '#f59e0b',
+            'paid': '#22c55e',
+            'confirmed': '#22c55e',
+            'cancelled': '#ef4444',
+            'expired': '#6b7280',
+        }.get(reservation.status, '#6b7280')
+
+        status_text = {
+            'reserved': '📋 Rezervováno - čeká na platbu',
+            'paid': '✅ Zaplaceno',
+            'confirmed': '✅ Potvrzeno',
+            'cancelled': '❌ Zrušeno',
+            'expired': '⏱️ Vypršelo',
+        }.get(reservation.status, reservation.status)
+
+        # Platební tlačítko (pokud nezaplaceno)
+        payment_button = ""
+        if reservation.status in ['reserved']:
+            base_url = request.env['ir.config_parameter'].sudo().get_param('web.base.url', 'https://symcherabus.eu')
+            payment_link = f"{base_url}/pwa/client/pay/{reservation.id}"
+            details = reservation._get_trip_details()
+            price = details.get('price', 0)
+            payment_button = f"""
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{payment_link}" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; padding: 18px 45px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 15px rgba(249,115,22,0.4);">
+                    💳 Zaplatit nyní - {price:.0f} ₴
+                </a>
+            </div>
+            """
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>🎫 Kontrola jízdenky {reservation.name} | SymcheraBUS</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); min-height: 100vh; margin: 0; padding: 20px; }}
+                .container {{ max-width: 600px; margin: 0 auto; }}
+                .card {{ background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }}
+                .header {{ background: linear-gradient(135deg, #f97316, #ea580c); padding: 30px; text-align: center; color: white; }}
+                .header h1 {{ margin: 0 0 10px 0; font-size: 24px; }}
+                .header .ticket-number {{ font-size: 32px; font-weight: bold; }}
+                .status-badge {{ display: inline-block; padding: 8px 20px; border-radius: 20px; font-weight: bold; margin-top: 15px; }}
+                .content {{ padding: 30px; }}
+                .info-row {{ display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }}
+                .info-label {{ color: #666; }}
+                .info-value {{ font-weight: 600; color: #333; }}
+                .section-title {{ color: #f97316; font-size: 14px; font-weight: 600; margin: 25px 0 15px 0; text-transform: uppercase; letter-spacing: 1px; }}
+                .footer {{ background: #f9fafb; padding: 20px; text-align: center; color: #666; font-size: 14px; }}
+                .footer a {{ color: #f97316; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="card">
+                    <div class="header">
+                        <h1>🚌 SymcheraBUS</h1>
+                        <div class="ticket-number">{reservation.name}</div>
+                        <div class="status-badge" style="background: {status_color}; color: white;">
+                            {status_text}
+                        </div>
+                    </div>
+
+                    <div class="content">
+                        <div class="section-title">👤 Cestující</div>
+                        <div class="info-row">
+                            <span class="info-label">Jméno:</span>
+                            <span class="info-value">{reservation.passenger_name or '—'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">{reservation.passenger_email or '—'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Telefon:</span>
+                            <span class="info-value">{reservation.passenger_phone or '—'}</span>
+                        </div>
+
+                        <div class="section-title">🚏 Cesta</div>
+                        {route_info}
+
+                        <div class="section-title">💳 Platba</div>
+                        {payment_info}
+
+                        {payment_button}
+
+                        {self._get_documents_section(reservation)}
+                    </div>
+
+                    <div class="footer">
+                        <p>SymcheraBUS | <a href="https://symcherabus.eu">symcherabus.eu</a> | +380673124850 | +420776359353</p>
+                        <p style="font-size: 12px; color: #999;">Kontrola provedena: {get_prague_now().strftime('%d.%m.%Y %H:%M')}</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+    def _get_ticket_status_info(self, reservation):
+        """Získá informace o stavu jízdenky"""
+        return {
+            'status': reservation.status,
+            'created': reservation.create_date.strftime('%d.%m.%Y %H:%M') if reservation.create_date else '—',
+        }
+
+    def _get_payment_info(self, reservation):
+        """Získá informace o platbě"""
+        html = ""
+
+        # Získat cenu
+        details = reservation._get_trip_details()
+        price = details.get('price', 0)
+
+        # Status platby
+        if reservation.status in ['paid', 'confirmed']:
+            html += f"""
+            <div class="info-row">
+                <span class="info-label">Stav:</span>
+                <span class="info-value" style="color: #22c55e;">✅ Zaplaceno</span>
+            </div>
+            """
+        else:
+            html += f"""
+            <div class="info-row">
+                <span class="info-label">Stav:</span>
+                <span class="info-value" style="color: #f59e0b;">⏳ Čeká na platbu</span>
+            </div>
+            """
+
+        html += f"""
+        <div class="info-row">
+            <span class="info-label">Částka:</span>
+            <span class="info-value">{price:.0f} ₴</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Způsob:</span>
+            <span class="info-value">{reservation.payment_method_detail or 'online'}</span>
+        </div>
+        """
+
+        # Monobank log info
+        if 'monobank.payment.log' in request.env:
+            monobank_log = request.env['monobank.payment.log'].sudo().search([
+                ('reservation_id', '=', reservation.id)
+            ], limit=1, order='create_date desc')
+            if monobank_log:
+                html += f"""
+                <div class="info-row">
+                    <span class="info-label">Reference:</span>
+                    <span class="info-value">{monobank_log.invoice_id or '—'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Datum platby:</span>
+                    <span class="info-value">{monobank_log.create_date.strftime('%d.%m.%Y %H:%M') if monobank_log.create_date else '—'}</span>
+                </div>
+                """
+
+        return html
+
+    def _get_documents_section(self, reservation):
+        """Sekce s tlačítky pro stažení dokumentů"""
+        if reservation.status not in ['paid', 'confirmed']:
+            return ""
+
+        base_url = request.env['ir.config_parameter'].sudo().get_param('web.base.url', 'https://symcherabus.eu')
+
+        # URL pro jízdenku
+        ticket_url = f"{base_url}/bus/ticket/pdf/{reservation.id}"
+
+        # URL pro kasový ček / příjmový doklad
+        receipt_url = f"{base_url}/bus/receipt/{reservation.id}"
+
+        # URL pro fakturu (pokud existuje)
+        invoice_url = ""
+        if hasattr(reservation, 'sale_order_id') and reservation.sale_order_id:
+            invoices = reservation.sale_order_id.invoice_ids.filtered(lambda i: i.state == 'posted')
+            if invoices:
+                invoice_url = f"{base_url}/report/pdf/account.report_invoice/{invoices[0].id}"
+
+        html = """
+        <div class="section-title">📄 Dokumenty</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 15px 0;">
+        """
+
+        html += f"""
+            <a href="{ticket_url}" target="_blank" style="display: inline-block; padding: 12px 20px; background: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">
+                🎫 Jízdenka (PDF)
+            </a>
+        """
+
+        html += f"""
+            <a href="{receipt_url}" target="_blank" style="display: inline-block; padding: 12px 20px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">
+                🧾 Kasovní ček
+            </a>
+        """
+
+        if invoice_url:
+            html += f"""
+                <a href="{invoice_url}" target="_blank" style="display: inline-block; padding: 12px 20px; background: #004aad; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">
+                    📋 Faktura
+                </a>
+            """
+
+        html += "</div>"
+        return html
+
+    def _get_route_info(self, reservation):
+        """Získá informace o trase"""
+        html = ""
+
+        boarding = reservation.boarding_point.name if hasattr(reservation, 'boarding_point') and reservation.boarding_point else '—'
+        dropping = reservation.dropping_point.name if hasattr(reservation, 'dropping_point') and reservation.dropping_point else '—'
+
+        html += f"""
+        <div class="info-row">
+            <span class="info-label">🚏 Nástup:</span>
+            <span class="info-value">{boarding}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">🏁 Výstup:</span>
+            <span class="info-value">{dropping}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">💺 Sedadlo:</span>
+            <span class="info-value">{reservation.selected_seats or 'AUTO'}</span>
+        </div>
+        """
+
+        # Datum jízdy
+        if hasattr(reservation, 'route_id') and reservation.route_id and hasattr(reservation.route_id, 'trip_date'):
+            trip_date = reservation.route_id.trip_date
+            if trip_date:
+                html += f"""
+                <div class="info-row">
+                    <span class="info-label">📅 Datum:</span>
+                    <span class="info-value">{trip_date.strftime('%d.%m.%Y') if hasattr(trip_date, 'strftime') else trip_date}</span>
+                </div>
+                """
+
+        return html

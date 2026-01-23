@@ -28,7 +28,7 @@
     "website": "https://www.it-enterprise.solutions",
     "depends": [
         'website',
-        'website_sale',
+        # 'website_sale',  # Temporarily disabled - testing without it
         'ie_bus_ticket_admin',
         'account',
         'sale_management',

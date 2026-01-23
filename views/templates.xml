@@ -41,7 +41,7 @@
                                 <button type="submit" class="modern-btn-search" name="search_submit">
                                     <i class="fa fa-search"></i> Пошук
                                 </button>
-                                <a href="/pwa/client" class="modern-btn-tickets" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-radius: 25px; text-decoration: none; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); transition: all 0.2s;">
+                                <a href="/pwa/client" class="modern-btn-tickets" onclick="if (window.location.pathname.includes('/pwa/dispatcher') &amp;&amp; typeof window.switchPanel === 'function') { window.switchPanel('left'); if (typeof closeProfileMenu === 'function') closeProfileMenu(); return false; }" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-radius: 25px; text-decoration: none; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); transition: all 0.2s;">
                                     <i class="fa fa-ticket"></i> Мої квитки
                                 </a>
                             </div>
@@ -781,9 +781,8 @@
                         </p>
                         <p class="contact-info">
                             <strong>Контакт диспетчера:</strong><br/>
-                            <i class="fa fa-phone"></i> <a href="tel:+380739065165">+380 739 065 165</a> |
-                            <a href="tel:+420447617002">+420 447 617 002</a> |
-                            <a href="tel:+380673124850">+380 673 124 850</a><br/>
+                            <i class="fa fa-phone"></i> <a href="tel:+380673124850">+380673124850</a> |
+                            <a href="tel:+420776359353">+420776359353</a><br/>
                             <i class="fa fa-envelope"></i> <a href="mailto:symchera@email.cz">symchera@email.cz</a>
                         </p>
                         <p class="contact-info">
@@ -979,25 +978,6 @@
                         <p><span>Разом:</span> <span id="totalPrice" class="price-display">0 ₴</span></p>
                     </div>
 
-                    <!-- Contact info warning -->
-                    <div class="contact-info-box" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border: 2px solid #ffc107; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
-                        <div style="display: flex; align-items: flex-start; gap: 10px;">
-                            <span style="font-size: 24px;">⚠️</span>
-                            <div>
-                                <strong style="color: #856404; font-size: 15px;">Важливо про ваші контакти:</strong>
-                                <ul style="margin: 8px 0 8px 15px; padding: 0; color: #856404; font-size: 14px;">
-                                    <li><i class="fa fa-phone" style="width: 16px;"></i> <strong>Телефон</strong> - ми зателефонуємо для підтвердження</li>
-                                    <li><i class="fa fa-envelope" style="width: 16px;"></i> <strong>Email</strong> - на нього прийде квиток</li>
-                                </ul>
-                                <p style="margin: 0; font-size: 13px; color: #856404;">
-                                    Переконайтесь, що дані правильні! Краще
-                                    <a href="#" onclick="window.showVerificationModal(); return false;" style="color: #004aad; text-decoration: underline; font-weight: bold;">підтвердити контакт</a>
-                                    зараз.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Passenger form -->
                     <div class="form-box-v2">
                         <form id="bookingForm">
@@ -1033,6 +1013,25 @@
                             <button type="button" class="btn-reserve-v2" onclick="window.reserveSeats()" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
                                 <i class="fa fa-bookmark"></i> Бронювати
                             </button>
+
+                            <!-- Contact info warning -->
+                            <div class="contact-info-box" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border: 2px solid #ffc107; border-radius: 12px; padding: 15px; margin-top: 15px;">
+                                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                    <span style="font-size: 24px;">⚠️</span>
+                                    <div>
+                                        <strong style="color: #856404; font-size: 15px;">Важливо про ваші контакти:</strong>
+                                        <ul style="margin: 8px 0 8px 15px; padding: 0; color: #856404; font-size: 14px;">
+                                            <li><i class="fa fa-phone" style="width: 16px;"></i> <strong>Телефон</strong> - ми зателефонуємо для підтвердження</li>
+                                            <li><i class="fa fa-envelope" style="width: 16px;"></i> <strong>Email</strong> - на нього прийде квиток</li>
+                                        </ul>
+                                        <p style="margin: 0; font-size: 13px; color: #856404;">
+                                            Переконайтесь, що дані правильні! Краще
+                                            <a href="#" onclick="window.showVerificationModal(); return false;" style="color: #004aad; text-decoration: underline; font-weight: bold;">підтвердити контакт</a>
+                                            зараз.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -1291,13 +1290,17 @@
 
                         // --- FORM ACTIONS ---
                         function validateForm() {
-                            if (window.selectedSeats.length === 0) {
-                                alert('Vyberte prosím alespoň jedno sedadlo');
+                            // Sedadlo není povinné - může být AUTO
+                            // Pouze kontrola, že email a telefon jsou vyplněny
+                            var email = document.getElementById('passenger_email').value.trim();
+                            var phone = document.getElementById('passenger_phone').value.trim();
+
+                            if (!email) {
+                                alert('Vyplňte prosím email');
                                 return false;
                             }
-                            var form = document.getElementById('bookingForm');
-                            if (!form.checkValidity()) {
-                                alert('Vyplňte prosím všechna povinná pole');
+                            if (!phone) {
+                                alert('Vyplňte prosím telefon');
                                 return false;
                             }
                             return true;
@@ -1377,6 +1380,136 @@
                 </script>
             </t>
         </template>
+
+    <!-- Stránka s přehledem před platbou -->
+    <template id="bus_booking_pay_confirm_template" name="Modern Bus Booking Pay Confirm">
+        <t t-call="website.layout">
+            <t t-set="head">
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/font_override.css"/>
+                <link rel="stylesheet" type="text/css" href="/ie_bus_ticket_web/static/src/css/modern_booking.css"/>
+                <style>
+                    .pay-confirm-container { max-width: 600px; margin: 30px auto; padding: 20px; }
+                    .pay-confirm-card { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+                    .pay-confirm-header { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 25px; text-align: center; }
+                    .pay-confirm-header h1 { margin: 0; font-size: 24px; }
+                    .pay-confirm-header .res-number { font-size: 32px; font-weight: bold; margin-top: 10px; }
+                    .pay-confirm-body { padding: 25px; }
+                    .info-section { margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 12px; }
+                    .info-section h3 { margin: 0 0 15px 0; color: #333; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; }
+                    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted #e5e7eb; }
+                    .info-row:last-child { border-bottom: none; }
+                    .info-row .label { color: #6b7280; font-size: 14px; }
+                    .info-row .value { color: #111; font-weight: 500; text-align: right; }
+                    .price-section { background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 20px; border-radius: 12px; margin: 20px 0; }
+                    .price-section .total { font-size: 28px; font-weight: bold; color: #92400e; text-align: center; }
+                    .affiliate-section { background: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 12px; margin: 15px 0; }
+                    .affiliate-section h4 { margin: 0 0 10px 0; color: #1e40af; font-size: 14px; }
+                    .affiliate-section .info-row .value { color: #1e40af; }
+                    .pay-button { display: block; width: 100%; padding: 18px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 20px; }
+                    .pay-button:hover { background: linear-gradient(135deg, #16a34a, #15803d); color: white; text-decoration: none; }
+                    .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 15px 0; }
+                    .warning-box p { margin: 0; color: #92400e; font-size: 14px; }
+                </style>
+            </t>
+
+            <div class="pay-confirm-container">
+                <div class="pay-confirm-card">
+                    <div class="pay-confirm-header">
+                        <h1>📋 Підтвердження оплати</h1>
+                        <div class="res-number"><t t-esc="reservation.name"/></div>
+                    </div>
+
+                    <div class="pay-confirm-body">
+                        <!-- Passenger Info -->
+                        <div class="info-section">
+                            <h3>👤 Пасажир</h3>
+                            <div class="info-row">
+                                <span class="label">Ім'я:</span>
+                                <span class="value"><t t-esc="reservation.passenger_name"/></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Email:</span>
+                                <span class="value"><t t-esc="reservation.passenger_email or '-'"/></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Телефон:</span>
+                                <span class="value"><t t-esc="reservation.passenger_phone or '-'"/></span>
+                            </div>
+                        </div>
+
+                        <!-- Trip Info -->
+                        <div class="info-section">
+                            <h3>🚌 Деталі поїздки</h3>
+                            <div class="info-row">
+                                <span class="label">Маршрут:</span>
+                                <span class="value"><t t-esc="boarding_name"/> → <t t-esc="dropping_name"/></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Дата:</span>
+                                <span class="value"><t t-esc="trip_date"/></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Посадка:</span>
+                                <span class="value"><t t-esc="boarding_time or '-'"/></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Місце:</span>
+                                <span class="value"><t t-esc="seat_display"/></span>
+                            </div>
+                        </div>
+
+                        <!-- Affiliate Info (if exists) -->
+                        <t t-if="referral_code or banner_code or campaign_code">
+                            <div class="affiliate-section">
+                                <h4>🤝 Партнерська інформація</h4>
+                                <t t-if="referral_code">
+                                    <div class="info-row">
+                                        <span class="label">Реферальний код:</span>
+                                        <span class="value"><t t-esc="referral_code"/></span>
+                                    </div>
+                                </t>
+                                <t t-if="banner_code">
+                                    <div class="info-row">
+                                        <span class="label">Банер:</span>
+                                        <span class="value"><t t-esc="banner_code"/></span>
+                                    </div>
+                                </t>
+                                <t t-if="campaign_code">
+                                    <div class="info-row">
+                                        <span class="label">Кампанія:</span>
+                                        <span class="value"><t t-esc="campaign_code"/></span>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+
+                        <!-- Price -->
+                        <div class="price-section">
+                            <div class="info-row" t-if="seat_count > 1">
+                                <span class="label">Ціна за місце:</span>
+                                <span class="value"><t t-esc="price_per_seat"/> ₴</span>
+                            </div>
+                            <div class="info-row" t-if="seat_count > 1">
+                                <span class="label">Кількість місць:</span>
+                                <span class="value"><t t-esc="seat_count"/></span>
+                            </div>
+                            <div class="total">💰 До сплати: <t t-esc="total_amount"/> ₴</div>
+                        </div>
+
+                        <!-- Warning -->
+                        <div class="warning-box">
+                            <p>⚠️ Після натискання кнопки Ви будете перенаправлені на захищену сторінку оплати Monobank.</p>
+                        </div>
+
+                        <!-- Pay Button -->
+                        <a t-att-href="'/bus-booking/pay-now?reservation_id=%s' % reservation.id" class="pay-button">
+                            💳 Оплатити <t t-esc="total_amount"/> ₴
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
 
     <template id="bus_booking_payment_success_template" name="Modern Bus Booking Payment Success">
         <t t-call="website.layout">
