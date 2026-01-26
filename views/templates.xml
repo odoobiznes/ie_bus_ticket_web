@@ -1415,45 +1415,45 @@
             <div class="pay-confirm-container">
                 <div class="pay-confirm-card">
                     <div class="pay-confirm-header">
-                        <h1>📋 Підтвердження оплати</h1>
+                        <h1>📋 <t t-esc="t.get('payment_confirmation', 'Підтвердження оплати')"/></h1>
                         <div class="res-number"><t t-esc="reservation.name"/></div>
                     </div>
 
                     <div class="pay-confirm-body">
                         <!-- Passenger Info -->
                         <div class="info-section">
-                            <h3>👤 Пасажир</h3>
+                            <h3>👤 <t t-esc="t.get('passenger', 'Пасажир')"/></h3>
                             <div class="info-row">
-                                <span class="label">Ім'я:</span>
+                                <span class="label"><t t-esc="t.get('name', 'Ім\'я')"/>:</span>
                                 <span class="value"><t t-esc="reservation.passenger_name"/></span>
                             </div>
                             <div class="info-row">
-                                <span class="label">Email:</span>
+                                <span class="label"><t t-esc="t.get('email', 'Email')"/>:</span>
                                 <span class="value"><t t-esc="reservation.passenger_email or '-'"/></span>
                             </div>
                             <div class="info-row">
-                                <span class="label">Телефон:</span>
+                                <span class="label"><t t-esc="t.get('phone', 'Телефон')"/>:</span>
                                 <span class="value"><t t-esc="reservation.passenger_phone or '-'"/></span>
                             </div>
                         </div>
 
                         <!-- Trip Info -->
                         <div class="info-section">
-                            <h3>🚌 Деталі поїздки</h3>
+                            <h3>🚌 <t t-esc="t.get('trip_details', 'Деталі поїздки')"/></h3>
                             <div class="info-row">
-                                <span class="label">Маршрут:</span>
+                                <span class="label"><t t-esc="t.get('route', 'Маршрут')"/>:</span>
                                 <span class="value"><t t-esc="boarding_name"/> → <t t-esc="dropping_name"/></span>
                             </div>
                             <div class="info-row">
-                                <span class="label">Дата:</span>
+                                <span class="label"><t t-esc="t.get('date', 'Дата')"/>:</span>
                                 <span class="value"><t t-esc="trip_date"/></span>
                             </div>
                             <div class="info-row">
-                                <span class="label">Посадка:</span>
+                                <span class="label"><t t-esc="t.get('boarding', 'Посадка')"/>:</span>
                                 <span class="value"><t t-esc="boarding_time or '-'"/></span>
                             </div>
                             <div class="info-row">
-                                <span class="label">Місце:</span>
+                                <span class="label"><t t-esc="t.get('seat', 'Місце')"/>:</span>
                                 <span class="value"><t t-esc="seat_display"/></span>
                             </div>
                         </div>
@@ -1461,22 +1461,22 @@
                         <!-- Affiliate Info (if exists) -->
                         <t t-if="referral_code or banner_code or campaign_code">
                             <div class="affiliate-section">
-                                <h4>🤝 Партнерська інформація</h4>
+                                <h4>🤝 <t t-esc="t.get('affiliate_info', 'Партнерська інформація')"/></h4>
                                 <t t-if="referral_code">
                                     <div class="info-row">
-                                        <span class="label">Реферальний код:</span>
+                                        <span class="label"><t t-esc="t.get('referral_code', 'Реферальний код')"/>:</span>
                                         <span class="value"><t t-esc="referral_code"/></span>
                                     </div>
                                 </t>
                                 <t t-if="banner_code">
                                     <div class="info-row">
-                                        <span class="label">Банер:</span>
+                                        <span class="label"><t t-esc="t.get('banner', 'Банер')"/>:</span>
                                         <span class="value"><t t-esc="banner_code"/></span>
                                     </div>
                                 </t>
                                 <t t-if="campaign_code">
                                     <div class="info-row">
-                                        <span class="label">Кампанія:</span>
+                                        <span class="label"><t t-esc="t.get('campaign', 'Кампанія')"/>:</span>
                                         <span class="value"><t t-esc="campaign_code"/></span>
                                     </div>
                                 </t>
@@ -1486,24 +1486,24 @@
                         <!-- Price -->
                         <div class="price-section">
                             <div class="info-row" t-if="seat_count > 1">
-                                <span class="label">Ціна за місце:</span>
+                                <span class="label"><t t-esc="t.get('price_per_seat', 'Ціна за місце')"/>:</span>
                                 <span class="value"><t t-esc="price_per_seat"/> ₴</span>
                             </div>
                             <div class="info-row" t-if="seat_count > 1">
-                                <span class="label">Кількість місць:</span>
+                                <span class="label"><t t-esc="t.get('seat_count', 'Кількість місць')"/>:</span>
                                 <span class="value"><t t-esc="seat_count"/></span>
                             </div>
-                            <div class="total">💰 До сплати: <t t-esc="total_amount"/> ₴</div>
+                            <div class="total">💰 <t t-esc="t.get('total_to_pay', 'До сплати')"/>: <t t-esc="total_amount"/> ₴</div>
                         </div>
 
                         <!-- Warning -->
                         <div class="warning-box">
-                            <p>⚠️ Після натискання кнопки Ви будете перенаправлені на захищену сторінку оплати Monobank.</p>
+                            <p>⚠️ <t t-esc="t.get('warning_monobank', 'Після натискання кнопки Ви будете перенаправлені на захищену сторінку оплати Monobank.')"/></p>
                         </div>
 
                         <!-- Pay Button -->
                         <a t-att-href="'/bus-booking/pay-now?reservation_id=%s' % reservation.id" class="pay-button">
-                            💳 Оплатити <t t-esc="total_amount"/> ₴
+                            💳 <t t-esc="t.get('pay_btn', 'Оплатити')"/> <t t-esc="total_amount"/> ₴
                         </a>
                     </div>
                 </div>

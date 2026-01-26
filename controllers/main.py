@@ -1766,6 +1766,78 @@ class ModernBusBooking(http.Controller):
             if not campaign_code and hasattr(reservation, 'affiliate_campaign_id') and reservation.affiliate_campaign_id:
                 campaign_code = reservation.affiliate_campaign_id.code or ''
 
+            # Překlady pro stránku potvrzení platby
+            user_lang = request.env.user.lang or 'uk_UA'
+            lang_code = user_lang.split('_')[0] if user_lang else 'uk'
+            
+            translations = {
+                'uk': {
+                    'payment_confirmation': 'Підтвердження оплати',
+                    'passenger': 'Пасажир',
+                    'name': "Ім'я",
+                    'email': 'Email',
+                    'phone': 'Телефон',
+                    'trip_details': 'Деталі поїздки',
+                    'route': 'Маршрут',
+                    'date': 'Дата',
+                    'boarding': 'Посадка',
+                    'seat': 'Місце',
+                    'affiliate_info': 'Партнерська інформація',
+                    'referral_code': 'Реферальний код',
+                    'banner': 'Банер',
+                    'campaign': 'Кампанія',
+                    'price_per_seat': 'Ціна за місце',
+                    'seat_count': 'Кількість місць',
+                    'total_to_pay': 'До сплати',
+                    'warning_monobank': 'Після натискання кнопки Ви будете перенаправлені на захищену сторінку оплати Monobank.',
+                    'pay_btn': 'Оплатити',
+                },
+                'cs': {
+                    'payment_confirmation': 'Potvrzení platby',
+                    'passenger': 'Cestující',
+                    'name': 'Jméno',
+                    'email': 'Email',
+                    'phone': 'Telefon',
+                    'trip_details': 'Detaily cesty',
+                    'route': 'Trasa',
+                    'date': 'Datum',
+                    'boarding': 'Nástup',
+                    'seat': 'Sedadlo',
+                    'affiliate_info': 'Partnerské informace',
+                    'referral_code': 'Referenční kód',
+                    'banner': 'Banner',
+                    'campaign': 'Kampaň',
+                    'price_per_seat': 'Cena za sedadlo',
+                    'seat_count': 'Počet sedadel',
+                    'total_to_pay': 'K úhradě',
+                    'warning_monobank': 'Po kliknutí na tlačítko budete přesměrováni na zabezpečenou platební stránku Monobank.',
+                    'pay_btn': 'Zaplatit',
+                },
+                'en': {
+                    'payment_confirmation': 'Payment Confirmation',
+                    'passenger': 'Passenger',
+                    'name': 'Name',
+                    'email': 'Email',
+                    'phone': 'Phone',
+                    'trip_details': 'Trip Details',
+                    'route': 'Route',
+                    'date': 'Date',
+                    'boarding': 'Boarding',
+                    'seat': 'Seat',
+                    'affiliate_info': 'Affiliate Information',
+                    'referral_code': 'Referral Code',
+                    'banner': 'Banner',
+                    'campaign': 'Campaign',
+                    'price_per_seat': 'Price per seat',
+                    'seat_count': 'Number of seats',
+                    'total_to_pay': 'Total to pay',
+                    'warning_monobank': 'After clicking the button you will be redirected to the secure Monobank payment page.',
+                    'pay_btn': 'Pay',
+                },
+            }
+            
+            t = translations.get(lang_code, translations['uk'])
+
             return request.render('ie_bus_ticket_web.bus_booking_pay_confirm_template', {
                 'reservation': reservation,
                 'boarding_name': boarding_name,
@@ -1779,6 +1851,8 @@ class ModernBusBooking(http.Controller):
                 'referral_code': referral_code,
                 'banner_code': banner_code,
                 'campaign_code': campaign_code,
+                't': t,
+                'lang_code': lang_code,
             })
 
         except Exception as e:
@@ -1938,6 +2012,11 @@ class ModernBusBooking(http.Controller):
             route = request.env['ie.bus.search.result'].sudo().browse(route_id)
             if not route.exists():
                 return {'success': False, 'message': 'Neplatný spoj'}
+            
+            # Validace: nelze nakupovat na minulé datum
+            today = get_prague_today()
+            if route.trip_date and route.trip_date < today:
+                return {'success': False, 'message': f'Nelze nakupovat na minulé datum ({route.trip_date.strftime("%d.%m.%Y")}). Nákup je možný pouze od dnešního dne.'}
 
             # Check if departure time from selected boarding point has passed (Prague timezone)
             now = get_prague_now()
