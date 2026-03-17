@@ -58,6 +58,7 @@
         <field name="arch" type="xml">
             <list default_order="trip_number, route_id, id" decoration-warning="status == 'reserved'" decoration-success="status in ('paid', 'confirmed')" decoration-danger="status == 'cancelled'" decoration-muted="status == 'expired'">
                 <field name="trip_number" column_invisible="1" />
+                <field name="trip_id" string="Trip" options="{'open': True}"/>
                 <field name="route_display" string="Linka" />
                 <field name="payment_info_html" widget="html" string="Datum a čas nákupu" />
                 <field name="trip_date" string="Datum" />
@@ -85,6 +86,7 @@
                 <field name="passenger_name" />
                 <field name="passenger_email" />
                 <field name="passenger_phone" />
+                <field name="trip_id" string="Trip" />
                 <field name="trip_number" />
                 <field name="selected_seats" />
                 <separator />
@@ -130,22 +132,32 @@
                     <!-- Tlačítko pro změnu statusu -->
                     <button name="action_open_change_status_wizard" string="📊 Změnit status" type="object"
                             class="btn-secondary" icon="fa-exchange" />
+                    <button name="action_change_trip" string="Změnit jízdu" type="object"
+                            class="btn-primary" icon="fa-exchange"
+                            invisible="status in ('cancelled', 'expired')"
+                            title="Přesunout jízdenku na jiný den nebo jinou linku"/>
                     <field name="status" widget="statusbar" statusbar_visible="reserved,paid,confirmed,expired,cancelled" />
                 </header>
                 <sheet>
                     <div class="oe_title">
-                        <div class="d-flex align-items-baseline gap-3">
+                        <div class="d-flex align-items-baseline gap-3 flex-wrap">
                             <h1 class="mb-0">
                                 <field name="name" readonly="1"/>
                             </h1>
                             <span class="text-muted" style="font-size: 14px;">
                                 <field name="reservation_date" readonly="1" widget="datetime"/>
                             </span>
+                            <span class="ms-3" style="font-size: 14px;" invisible="not trip_id">
+                                <label for="trip_id" string="Linka / Trip" class="me-1"/>
+                                <field name="trip_id" readonly="1" nolabel="1" options="{'open': True}"/>
+                            </span>
                         </div>
                     </div>
                     <group>
                         <group string="Informace o cestě">
+                            <field name="trip_id" invisible="1"/>
                             <field name="route_id" string="Linka" readonly="1"/>
+                            <field name="trip_date" string="Datum jízdy" readonly="1"/>
                             <field name="trip_date" string="Datum jízdy" readonly="1"/>
                             <field name="selected_seats" string="Místo" readonly="1"/>
                             <label for="boarding_point" string="Trasa"/>
